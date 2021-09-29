@@ -12,7 +12,6 @@ export default function Hot () {
   let ws = null
   app.ws("/hmr", function(_ws, req) {
     ws = _ws
-    _ws.send('HMR listening!')
   })
 
   app.use(express.static(paths.appBuild))
@@ -23,26 +22,27 @@ export default function Hot () {
     })
 
     const els = html.split('</body>')
-    els[0] += `  <script>(${emit.toString().replace(/[\r\n]/g, '')})(${'3000'})</script>` 
+    els[0] += `<script>(${emit.toString().replace(/[\r\n]/g, '')})(${'3000'})</script>`
+    els[0] += `<script src="bundle.js"></script>`
     res.send(els.join('</body>'))
   })
 
   /** 添加socket */
-  setInterval(() => {
-    if (ws && !ws.closed) {
-      ws.send('HTR 123')
-    }
-  }, 1000);
+  // setInterval(() => {
+  //   if (ws && !ws.closed) {
+  //     ws.send('HTR 123')
+  //   }
+  // }, 1000);
 
   app.listen(3000, () => {
     console.log('listen at http://localhost:3000')
   })
   return {
     name: 'rollup-hot-reload-plugin',
-    transform (source, id) {
-      fs.writeFileSync('1.log', source, {
-        encoding: 'utf-8'
-      })
+    generateBundle (outputOptions) {
+      if (ws && !ws.closed) {
+        ws.send(outputOptions.file.replace(/\.\/build\//, ''))
+      }
     }
   }
 }

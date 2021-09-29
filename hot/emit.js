@@ -4,7 +4,9 @@ export default function emit (port) {
     console.log('HMR opened!')
   }
   ws.onmessage = (e) => {
-    console.log(e.data)
+    let script = document.createElement('script')
+    script.src = e.data
+    document.body.append(script)
   }
   ws.onclose = () => {
     console.log('HMR closed')
