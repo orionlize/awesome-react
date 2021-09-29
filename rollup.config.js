@@ -1,6 +1,7 @@
 import typescript from 'rollup-plugin-typescript';
 import babel from 'rollup-plugin-babel';
 import {eslint} from 'rollup-plugin-eslint';
+import hotreload from './hot/index'
 
 export default {
   input: './src/index.ts',
@@ -17,6 +18,7 @@ export default {
       exclude: ['node_modules/**'],
     }),
     typescript(),
+    hotreload()
   ],
 }
 ;
