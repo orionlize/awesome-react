@@ -16,5 +16,10 @@ module.exports = {
   'rules': {
     'require-jsdoc': 0,
     'max-len': 0,
+    'no-unused-vars': [
+      'error', {
+        'varsIgnorePattern': 'Awesome',
+      },
+    ],
   },
 };

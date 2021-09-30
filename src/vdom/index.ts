@@ -1,5 +1,7 @@
 import * as Awesome from './type';
 
+const AWESOME_TYPE = Symbol('awesome.element');
+
 function createElement(
   type: 'input',
   props?: Awesome.InputHTMLAttributes & Awesome.ClassAttributes<HTMLInputElement> | null,
@@ -17,14 +19,41 @@ function createElement<P extends Awesome.DOMAttributes<T>, T extends Element>(
   props?: Awesome.ClassAttributes<T> & P | null,
   ...children: Awesome.Node[]): Awesome.DOMElement<P, T>;
 
-function createElement<
-  P extends Awesome.HTMLAttributes<T> | Awesome.SVGAttributes<T> | Awesome.DOMAttributes<T>,
-  T extends HTMLElement | Awesome.SVGElement | Element>(
+function createElement<P1 extends Awesome.HTMLAttributes<T1>, T1 extends HTMLElement, P2 extends Awesome.SVGAttributes<T2>, T2 extends Awesome.SVGElement, P3 extends Awesome.DOMAttributes<T3>, T3 extends Element>(
     type: 'input' | keyof Awesome.NodeType | keyof Awesome.SVG | string,
-    props: (Awesome.InputHTMLAttributes & Awesome.ClassAttributes<HTMLInputElement>) | (Awesome.ClassAttributes<T> & P) | null,
+    props?: (Awesome.InputHTMLAttributes & Awesome.ClassAttributes<HTMLInputElement>) | (Awesome.ClassAttributes<T1> & P1) | (Awesome.ClassAttributes<T2> & P2) | (Awesome.ClassAttributes<T3> & P3) | null,
     ...children: Awesome.Node[]
-): Awesome.DetailedAwesomeHTMLElement<Awesome.InputHTMLAttributes, HTMLInputElement> | Awesome.DetailedAwesomeHTMLElement<P, T> | {
+): Awesome.DetailedAwesomeHTMLElement<Awesome.InputHTMLAttributes, HTMLInputElement> | Awesome.DetailedAwesomeHTMLElement<P1, T1> | Awesome.SVGElement | Awesome.DOMElement<P3, T3> {
+  const _return: Awesome.DetailedAwesomeHTMLElement<Awesome.InputHTMLAttributes, HTMLInputElement> | Awesome.DetailedAwesomeHTMLElement<P1, T1> | Awesome.SVGElement | Awesome.DOMElement<P3, T3> = {
+    key: null,
+    ref: null,
+    props: {} as P3,
+    type: type.toString(),
+  };
 
+  if (props) {
+    if (props.key) {
+      _return.key = props.key;
+      delete props.key;
+    }
+    if (props.ref) {
+      _return.ref = props.ref as Awesome.Ref<T3>;
+      delete props.ref;
+    }
+  }
+  if (children && children.length > 0) {
+    props = props || {};
+    props.children = children;
+  }
+  _return.props = props as P3;
+
+  Object.defineProperty(_return, '$$type', {
+    value: AWESOME_TYPE,
+    enumerable: false,
+    configurable: false,
+  });
+
+  return _return;
 }
 
 export default {

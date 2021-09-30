@@ -6,12 +6,13 @@ type NodeType = keyof React.ReactHTML
 type HTMLAttributes<T> = React.HTMLAttributes<T>
 type ClassAttributes<T> = React.ClassAttributes<T>
 type InputHTMLAttributes = React.InputHTMLAttributes<HTMLInputElement>
-type DetailedAwesomeHTMLElement<P, T extends HTMLElement> = React.DetailedReactHTMLElement<P, T>
+type DetailedAwesomeHTMLElement<P extends HTMLAttributes<T>, T extends HTMLElement> = React.DetailedReactHTMLElement<P, T>
 type SVG = React.ReactSVG
 type SVGAttributes<T> = React.SVGAttributes<T>
 type SVGElement = React.ReactSVGElement
 type DOMAttributes<T> = React.DOMAttributes<T>
-type DOMElement<P, T extends Element> = React.DOMElement<P, T>
+type DOMElement<P extends HTMLAttributes<T> | SVGAttributes<T>, T extends Element> = React.DOMElement<P, T>
+type Ref<T> = React.LegacyRef<T>
 
 export {
   Node,
@@ -25,6 +26,7 @@ export {
   SVGElement,
   DOMAttributes,
   DOMElement,
+  Ref,
 };
 // Custom components
 

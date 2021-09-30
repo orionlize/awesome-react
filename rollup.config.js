@@ -4,7 +4,7 @@ import {eslint} from 'rollup-plugin-eslint';
 import hotreload from './hot/index';
 
 export default {
-  input: './src/index.ts',
+  input: './src/index.tsx',
   output: {
     file: './build/bundle.js',
     format: 'iife',
