@@ -1,17 +1,28 @@
-export default function emit (port) {
-  const ws = new WebSocket(`ws://localhost:${port}/hmr`)
+export default function emit(port) {
+  const ws = new WebSocket(`ws://localhost:${port}/hmr`);
   ws.onopen = () => {
-    console.log('HMR opened!')
-  }
+    console.log('HMR opened!');
+  };
   ws.onmessage = (e) => {
-    let script = document.createElement('script')
-    script.src = e.data
-    document.body.append(script)
-  }
+    const arr = JSON.parse(e.data);
+    const scripts = document.querySelectorAll('script');
+    for (let i = 0; i < arr.length; ++ i) {
+      let script = document.createElement('script');
+      if (scripts.length - 1 >= i + 1) {
+        scripts[i + 1].remove();
+        script.src = arr[i];
+        document.body.append(script);
+      } else {
+        scripts.src = arr[i];
+        document.body.append(script);
+      }
+      script = null;
+    }
+  };
   ws.onclose = () => {
-    console.log('HMR closed')
-  }
+    console.log('HMR closed');
+  };
   ws.onerror = () => {
-    console.error('HMR error')
-  }
+    console.error('HMR error');
+  };
 }

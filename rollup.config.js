@@ -1,13 +1,13 @@
 import typescript from 'rollup-plugin-typescript';
 import babel from 'rollup-plugin-babel';
 import {eslint} from 'rollup-plugin-eslint';
-import hotreload from './hot/index'
+import hotreload from './hot/index';
 
 export default {
   input: './src/index.ts',
   output: {
     file: './build/bundle.js',
-    format: 'cjs',
+    format: 'iife',
     sourcemap: true,
   },
 
@@ -18,7 +18,7 @@ export default {
       exclude: ['node_modules/**'],
     }),
     typescript(),
-    hotreload()
+    hotreload(),
   ],
 }
 ;

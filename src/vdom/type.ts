@@ -1,0 +1,46 @@
+import React from 'react';
+
+type Node = React.ReactNode
+type NodeType = keyof React.ReactHTML
+
+type HTMLAttributes<T> = React.HTMLAttributes<T>
+type ClassAttributes<T> = React.ClassAttributes<T>
+type InputHTMLAttributes = React.InputHTMLAttributes<HTMLInputElement>
+type DetailedAwesomeHTMLElement<P, T extends HTMLElement> = React.DetailedReactHTMLElement<P, T>
+type SVG = React.ReactSVG
+type SVGAttributes<T> = React.SVGAttributes<T>
+type SVGElement = React.ReactSVGElement
+type DOMAttributes<T> = React.DOMAttributes<T>
+type DOMElement<P, T extends Element> = React.DOMElement<P, T>
+
+export {
+  Node,
+  NodeType,
+  HTMLAttributes,
+  ClassAttributes,
+  InputHTMLAttributes,
+  DetailedAwesomeHTMLElement,
+  SVG,
+  SVGAttributes,
+  SVGElement,
+  DOMAttributes,
+  DOMElement,
+};
+// Custom components
+
+// function createElement<P extends {}>(
+//   type: FunctionComponent<P>,
+//   props?: Attributes & P | null,
+//   ...children: ReactNode[]): FunctionComponentElement<P>;
+// function createElement<P extends {}>(
+//   type: ClassType<P, ClassicComponent<P, ComponentState>, ClassicComponentClass<P>>,
+//   props?: ClassAttributes<ClassicComponent<P, ComponentState>> & P | null,
+//   ...children: ReactNode[]): CElement<P, ClassicComponent<P, ComponentState>>;
+// function createElement<P extends {}, T extends Component<P, ComponentState>, C extends ComponentClass<P>>(
+//   type: ClassType<P, T, C>,
+//   props?: ClassAttributes<T> & P | null,
+//   ...children: ReactNode[]): CElement<P, T>;
+// function createElement<P extends {}>(
+//   type: FunctionComponent<P> | ComponentClass<P> | string,
+//   props?: Attributes & P | null,
+//   ...children: ReactNode[]): ReactElement<P>;
