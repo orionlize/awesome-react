@@ -1,9 +1,18 @@
-import Awesome from './vdom/index';
+import Awesome from './awesome/index';
+import AwesomeDOM from './awesome-dom/index';
+import {CSSProperties} from 'react';
 
-function App() {
+function App(props: {data: string, style: CSSProperties}) {
   return <div>
-    <h1>123</h1>
+    {
+      new Array(10).fill(0).map(() => {
+        return <div style={props.style}>
+        456
+          <div>{props.data}</div>
+        </div>;
+      })
+    }
   </div>;
 }
 
-console.log(App());
+AwesomeDOM.render(<App style={{fontSize: '25px', color: 'red'}} data='123' />, document.getElementById('root'));

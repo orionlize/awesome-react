@@ -4,7 +4,6 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "prepack": "babel ./hot/emit.js -o ./hot/runtime.js",
     "build": "rollup -c ./rollup.config.js",
     "start": "rollup -c ./rollup.config.js --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -17,9 +16,12 @@
     "@babel/plugin-syntax-jsx": "^7.14.5",
     "@babel/preset-env": "^7.15.6",
     "@babel/preset-typescript": "^7.15.0",
+    "@lopatnov/rollup-plugin-uglify": "^2.1.1",
     "@types/react": "^17.0.25",
+    "@types/react-dom": "^17.0.9",
     "@typescript-eslint/eslint-plugin": "^4.32.0",
     "@typescript-eslint/parser": "^4.32.0",
+    "csstype": "^3.0.9",
     "eslint": "^7.32.0",
     "eslint-config-google": "^0.14.0",
     "express": "^4.17.1",

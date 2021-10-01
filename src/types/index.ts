@@ -1,7 +1,7 @@
 import React from 'react';
 
 type Node = React.ReactNode
-type NodeType = keyof React.ReactHTML
+type NodeType = React.ReactHTML
 
 type HTMLAttributes<T> = React.HTMLAttributes<T>
 type ClassAttributes<T> = React.ClassAttributes<T>
@@ -13,6 +13,11 @@ type SVGElement = React.ReactSVGElement
 type DOMAttributes<T> = React.DOMAttributes<T>
 type DOMElement<P extends HTMLAttributes<T> | SVGAttributes<T>, T extends Element> = React.DOMElement<P, T>
 type Ref<T> = React.LegacyRef<T>
+
+type Container = Element | Document | DocumentFragment
+type AwesomeElement = React.ReactElement
+
+type FunctionComponent<P extends DOMAttributes<T>, T extends Element> = (...args: any[]) => DOMElement<P, T>
 
 export {
   Node,
@@ -27,6 +32,9 @@ export {
   DOMAttributes,
   DOMElement,
   Ref,
+  Container,
+  AwesomeElement,
+  FunctionComponent,
 };
 // Custom components
 

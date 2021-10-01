@@ -1,9 +1,9 @@
 import paths from './paths';
-import emit from './emit';
 
 const express = require('express');
 const expressWs = require('express-ws');
 const fs = require('fs');
+const path = require('path');
 
 export default function Hot() {
   const app = express();
@@ -12,6 +12,7 @@ export default function Hot() {
   let ws = null;
   app.ws('/hmr', function(_ws, req) {
     ws = _ws;
+    ws.send(JSON.stringify(['bundle.js']));
   });
 
   app.use(express.static(paths.appBuild));
@@ -23,9 +24,8 @@ export default function Hot() {
 
     const els = html.split('</body>');
     els[0] += `<script>(${
-      emit.toString().replace(/[\r\n]/g, '')
+      require(path.resolve(paths.appBuild, 'emit.js')).toString().replace(/[\r\n]/g, '')
     })(${'3000'})</script>`;
-    els[0] += `<script src="bundle.js"></script>`;
     res.send(els.join('</body>'));
   });
 
