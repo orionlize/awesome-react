@@ -1,3 +1,4 @@
+import {AwesomeComponent} from '@/component';
 import * as Awesome from '../types/index';
 
 const AWESOME_TYPE = Symbol('awesome.element');
@@ -18,24 +19,22 @@ function createElement<P extends Awesome.DOMAttributes<T>, T extends Element>(
   type: string,
   props?: Awesome.ClassAttributes<T> & P | null,
   ...children: Awesome.Node[]): Awesome.DOMElement<P, T>;
-function createElement<P extends Awesome.DOMAttributes<T>, T extends Element>(
-  type: Awesome.FunctionComponent<P, T>,
-  props?: Awesome.ClassAttributes<T> & P | null,
-  ...children: Awesome.Node[]): Awesome.DOMElement<P, T>;
+function createElement<P extends {}>(
+  type: Awesome.FunctionComponent<P>,
+  props?: Awesome.Attributes & P | null,
+  ...children: Awesome.Node[]): Awesome.FunctionComponentElement<P>;
 
-function createElement<P1 extends Awesome.HTMLAttributes<T1>, T1 extends HTMLElement, P2 extends Awesome.SVGAttributes<T2>, T2 extends Awesome.SVGElement, P3 extends Awesome.DOMAttributes<T3>, T3 extends Element>(
-    type: 'input' | keyof (Awesome.NodeType | Awesome.SVG) | Awesome.FunctionComponent<P3, T3> | string,
-    props?: (Awesome.InputHTMLAttributes & Awesome.ClassAttributes<HTMLInputElement>) | (Awesome.ClassAttributes<T1> & P1) | (Awesome.ClassAttributes<T2> & P2) | (Awesome.ClassAttributes<T3> & P3) | null,
+function createElement<P1 extends Awesome.HTMLAttributes<T1>, T1 extends HTMLElement, P2 extends Awesome.SVGAttributes<T2>, T2 extends Awesome.SVGElement, P3 extends Awesome.DOMAttributes<T3>, T3 extends Element, P4 extends {
+  children: Awesome.Node[]
+}>(
+    type: 'input' | keyof (Awesome.NodeType | Awesome.SVG) | Awesome.FunctionComponent<P4> | string,
+    props?: (Awesome.InputHTMLAttributes & Awesome.ClassAttributes<HTMLInputElement>) | (Awesome.ClassAttributes<T1> & P1) | (Awesome.ClassAttributes<T2> & P2) | (Awesome.ClassAttributes<T3> & P3) | (Awesome.Attributes & P4) | null,
     ...children: Awesome.Node[]
-): Awesome.DetailedAwesomeHTMLElement<Awesome.InputHTMLAttributes, HTMLInputElement> | Awesome.DetailedAwesomeHTMLElement<P1, T1> | Awesome.SVGElement | Awesome.DOMElement<P3, T3> {
-  if (typeof type === 'function') {
-    return type(props);
-  }
-
-  const _return: Awesome.DetailedAwesomeHTMLElement<Awesome.InputHTMLAttributes, HTMLInputElement> | Awesome.DetailedAwesomeHTMLElement<P1, T1> | Awesome.SVGElement | Awesome.DOMElement<P3, T3> = {
+): Awesome.DetailedAwesomeHTMLElement<Awesome.InputHTMLAttributes, HTMLInputElement> | Awesome.DetailedAwesomeHTMLElement<P1, T1> | Awesome.SVGElement | Awesome.DOMElement<P3, T3> | Awesome.FunctionComponentElement<P4> {
+  const _return: any = {
     key: null,
     ref: null,
-    props: {} as P3,
+    props: {},
     type,
   };
 
@@ -44,8 +43,9 @@ function createElement<P1 extends Awesome.HTMLAttributes<T1>, T1 extends HTMLEle
       _return.key = props.key;
       delete props.key;
     }
-    if (props.ref) {
-      _return.ref = props.ref as Awesome.Ref<T3>;
+
+    if ('ref' in props) {
+      _return.ref = props.ref;
       delete props.ref;
     }
   }
@@ -53,7 +53,7 @@ function createElement<P1 extends Awesome.HTMLAttributes<T1>, T1 extends HTMLEle
     props = props || {};
     props.children = children;
   }
-  _return.props = props as P3;
+  _return.props = props as any;
 
   Object.defineProperty(_return, '$$type', {
     value: AWESOME_TYPE,
@@ -61,7 +61,7 @@ function createElement<P1 extends Awesome.HTMLAttributes<T1>, T1 extends HTMLEle
     configurable: false,
   });
 
-  return _return;
+  return _return as Awesome.DetailedAwesomeHTMLElement<Awesome.InputHTMLAttributes, HTMLInputElement> | Awesome.DetailedAwesomeHTMLElement<P1, T1> | Awesome.SVGElement | Awesome.DOMElement<P3, T3> | Awesome.FunctionComponentElement<P4>;
 }
 
 export default {

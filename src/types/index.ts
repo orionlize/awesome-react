@@ -17,7 +17,9 @@ type Ref<T> = React.LegacyRef<T>
 type Container = Element | Document | DocumentFragment
 type AwesomeElement = React.ReactElement
 
-type FunctionComponent<P extends DOMAttributes<T>, T extends Element> = (...args: any[]) => DOMElement<P, T>
+type FunctionComponent<P> = React.FunctionComponent<P>
+type Attributes = React.Attributes
+type FunctionComponentElement<P> = React.FunctionComponentElement<P>
 
 export {
   Node,
@@ -35,7 +37,10 @@ export {
   Container,
   AwesomeElement,
   FunctionComponent,
+  FunctionComponentElement,
+  Attributes,
 };
+
 // Custom components
 
 // function createElement<P extends {}>(

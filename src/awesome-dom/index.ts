@@ -28,6 +28,14 @@ function _render(
       _render(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, container);
     }
   }
+  // TODO: 组件构建
+  // else if (typeof type === 'function') {
+  //   if (Reflect.get(type, '_isClass')) {
+  //     return new type(element.props).render();
+  //   } else {
+  //     return type(element.props);
+  //   }
+  // }
   if (element.props && element.props.children) {
     if (Array.isArray(element.props.children) && el) {
       for (const child of element.props.children) {
@@ -42,6 +50,7 @@ function _render(
   if (el && container) {
     container.append(el);
   }
+
   return el as Element;
 }
 
