@@ -1,7 +1,7 @@
-import {AwesomeComponent} from '@/component';
 import * as Awesome from '../types/index';
 
 const AWESOME_TYPE = Symbol('awesome.element');
+const Fragment = Symbol('awesome.fragment');
 
 function createElement(
   type: 'input',
@@ -27,7 +27,7 @@ function createElement<P extends {}>(
 function createElement<P1 extends Awesome.HTMLAttributes<T1>, T1 extends HTMLElement, P2 extends Awesome.SVGAttributes<T2>, T2 extends Awesome.SVGElement, P3 extends Awesome.DOMAttributes<T3>, T3 extends Element, P4 extends {
   children: Awesome.Node[]
 }>(
-    type: 'input' | keyof (Awesome.NodeType | Awesome.SVG) | Awesome.FunctionComponent<P4> | string,
+    type: 'input' | keyof (Awesome.NodeType | Awesome.SVG) | Awesome.FunctionComponent<P4> | symbol | string,
     props?: (Awesome.InputHTMLAttributes & Awesome.ClassAttributes<HTMLInputElement>) | (Awesome.ClassAttributes<T1> & P1) | (Awesome.ClassAttributes<T2> & P2) | (Awesome.ClassAttributes<T3> & P3) | (Awesome.Attributes & P4) | null,
     ...children: Awesome.Node[]
 ): Awesome.DetailedAwesomeHTMLElement<Awesome.InputHTMLAttributes, HTMLInputElement> | Awesome.DetailedAwesomeHTMLElement<P1, T1> | Awesome.SVGElement | Awesome.DOMElement<P3, T3> | Awesome.FunctionComponentElement<P4> {
@@ -66,4 +66,5 @@ function createElement<P1 extends Awesome.HTMLAttributes<T1>, T1 extends HTMLEle
 
 export default {
   createElement,
+  Fragment,
 };
