@@ -215,7 +215,7 @@ function render(
         const cur: Awesome.VDom = {...root};
         const next = AwesomeReconciler.build(root.children[0], null, 0, Array.isArray(root.children) ? root.children[0] : undefined);
         cur.children = next ? (typeof next === 'string' ? next : [next]) : [];
-        diff(root.children[0], cur.children[0]);
+        diff(root.children[0] as Awesome.VDom, cur.children[0] as Awesome.VDom);
         root.children = cur.children;
         root.patches = [];
         isDispatching = null;

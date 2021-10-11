@@ -22,5 +22,6 @@ module.exports = {
         'args': 'none',
       },
     ],
+    'no-invalid-this': 0,
   },
 };

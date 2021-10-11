@@ -45,7 +45,7 @@ class Cpp extends AwesomeComponent<{
   data: number
   cb: (update: any) => void
 }, {}, {}> {
-  shouldComponentUpdate(nextProps, nextState) {
+  shouldComponentUpdate(nextProps: any, nextState: any) {
     // return Math.round(Math.random()) === 1;
     return true;
   }
