@@ -19,7 +19,7 @@ type Container = Element | Document | DocumentFragment
 type JSXElementConstructor<P extends {children: ChildrenNode | string}> =
 | ((props: P) => AwesomeElement<any, any> | null)
 | (new (props: P) => AwesomeComponent<P, any>);
-type AwesomeElement<P = any, T extends string | JSXElementConstructor<any> = string | JSXElementConstructor<any>> = React.ReactElement<P, T>
+type AwesomeElement<P = any, T extends string | JSXElementConstructor<any> = string | JSXElementConstructor<any> > = React.ReactElement<P, T>
 
 type ChildrenNode = React.ReactChild
 type FunctionComponent<P> = React.FunctionComponent<P>
@@ -31,12 +31,16 @@ interface VDom<P extends {children: ChildrenNode | string} = {children: Children
   parent: VDom<P> | null
   children: VDom<P>[] | string
   brother: VDom<P> | null
-  hooks?: Function[]
+  stateIndex?: number
+  stateLength?: number
   props: any
-  instance?: AwesomeComponent<P>
-  patches: {instance: AwesomeComponent<P>, state?: {}, isForce?: boolean}[]
+  instance?: AwesomeComponent
+  patches: {instance: AwesomeComponent, state?: {}, isForce?: boolean}[]
   dispatchUpdate?: () => void
   dom?: HTMLElement | null
+  stateMap?: Map<number, VDom>
+  effectIndex?: number
+  effectLength?: number
 }
 
 export {

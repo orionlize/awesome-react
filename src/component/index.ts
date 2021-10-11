@@ -1,12 +1,12 @@
 import * as Awesome from '@/types';
 import React from 'react';
 
-export class AwesomeComponent<P extends {children?: Awesome.ChildrenNode | string} = {children: Awesome.ChildrenNode | string}, S = {}, SS = {}> implements React.Component<P, S, SS> {
+export class AwesomeComponent<P = {}, S = {}, SS = {}> implements React.Component<P, S, SS> {
   context: undefined
-  props: P
+  props: P & {children?: Awesome.ChildrenNode}
   state: S = {} as S
 
-  _node?: Awesome.VDom<P>
+  _node?: Awesome.VDom
 
   setState(_state: any) {
     let _parent = this._node?.parent || this._node;
@@ -36,6 +36,12 @@ export class AwesomeComponent<P extends {children?: Awesome.ChildrenNode | strin
   constructor(props: P) {
     this.props = props;
   }
+
+  // componentDidCatch?: () => void
+  shouldComponentUpdate?(nextProps: P, nextState: S): boolean
+  componentDidMount?(): void
+  componentDidUpdate?(): void
+  componentWillUnmount?(): void
 
   render(): Awesome.Node {
     return null;

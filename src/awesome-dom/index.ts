@@ -1,81 +1,12 @@
-import {AwesomeComponent} from '@/component';
 import * as Awesome from '@/types';
-import _Awesome from '@/awesome';
+import AwesomeReconciler from '@/awesome-reconciler';
+import {Fragment} from '@/const';
 
-function build<P extends {children: Awesome.ChildrenNode | string}>(
-    element: Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element> | Awesome.AwesomeElement | Awesome.Node,
-    parent: Awesome.VDom<P> | null = null,
-    i: number = 0,
-    old?: Awesome.VDom<P>,
-): Awesome.VDom<P> | null {
-  if (!element || typeof element !== 'object') {
-    if (element && parent) {
-      const el: Awesome.VDom<P> = {
-        parent,
-        children: String(element),
-        brother: parent && Array.isArray(parent.children) && i > 0 ? parent.children[i - 1] : null,
-        props: null,
-        hooks: [],
-        patches: [],
-      };
-      (parent.children as Awesome.VDom<P>[]).push(el);
-      return el;
-    }
-  } else if ('type' in element) {
-    const type = element.type;
-    const el: Awesome.VDom<P> = {
-      type,
-      parent,
-      children: [],
-      brother: parent && Array.isArray(parent.children) && i > 0 ? parent.children[i - 1] : null,
-      props: element.props,
-      hooks: [],
-      patches: [],
-    };
-    if (typeof type === 'function') {
-      if (type.prototype instanceof AwesomeComponent) {
-        const Type = type as new(props: P) => AwesomeComponent<P>;
-        if (old && old.type === element.type) {
-          el.instance = old.instance!;
-        } else {
-          el.instance = new Type(element.props);
-          el.instance._node = el;
-        }
-        build(el.instance.render(), el, 0, old && Array.isArray(old.children) ? old.children[i] : undefined);
-      } else {
-        build((type as ((props: any) => Awesome.AwesomeElement<any, any> | null))(element.props), el, 0, old && Array.isArray(old.children) ? old.children[i] : undefined);
-      }
-    } else if (element.props && element.props.children) {
-      if (Array.isArray(element.props.children) && el) {
-        let _i = 0;
-        for (const child of element.props.children) {
-          build(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, el, _i, old && Array.isArray(old.children) ? old.children[i] : undefined);
-          ++ _i;
-        }
-      }
-    }
-
-    if (el && parent) {
-      (parent.children as Awesome.VDom<P>[]).push(el);
-    }
-
-    return el;
-  } else if (Array.isArray(element)) {
-    let _i = 0;
-    for (const child of element) {
-      build(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, parent, _i, old && Array.isArray(old.children) ? old.children[i] : undefined);
-      ++ _i;
-    }
-  }
-
-  return null;
-}
-
-function _render<P extends {children: Awesome.ChildrenNode | string}>(
-    node: Awesome.VDom<P>,
+function _render(
+    node: Awesome.VDom,
     parent: Awesome.Container,
 ) {
-  if (!node.type || typeof node.type === 'string' || node.type === _Awesome.Fragment) {
+  if (!node.type || typeof node.type === 'string' || node.type === Fragment) {
     if (!node.type) {
       parent.append(node.children as string);
       node.dom = parent.childNodes.item(parent.childNodes.length - 1) as HTMLElement;
@@ -102,7 +33,7 @@ function _render<P extends {children: Awesome.ChildrenNode | string}>(
         }
       }
       for (const child of node.children) {
-        _render(child as Awesome.VDom<P>, el);
+        _render(child as Awesome.VDom, el);
       }
 
       parent.append(el);
@@ -110,26 +41,32 @@ function _render<P extends {children: Awesome.ChildrenNode | string}>(
     } else {
       const el = document.createDocumentFragment();
       for (const child of node.children) {
-        _render(child as Awesome.VDom<P>, el);
+        _render(child as Awesome.VDom, el);
       }
 
       parent.append(el);
     }
   } else {
     for (const child of node.children) {
-      _render(child as Awesome.VDom<P>, parent);
+      _render(child as Awesome.VDom, parent);
+    }
+    if (typeof node.type === 'function') {
+      if (node.instance) {
+        node.instance.componentDidMount && node.instance.componentDidMount();
+      }
     }
   }
 }
 
-function replaceOld(tree: Awesome.VDom, handler: (dom: HTMLElement) => void) {
-  if (typeof tree.type === 'function' || tree.type === _Awesome.Fragment) {
+function replaceOld(tree: Awesome.VDom, handler: (dom: HTMLElement) => void, unmount?: () => void) {
+  if (typeof tree.type === 'function' || tree.type === Fragment) {
     if (Array.isArray(tree.children)) {
       for (const child of tree.children) {
-        if (typeof child.type === 'function') {
-          replaceOld(child, handler);
-        }
+        replaceOld(child, handler);
       }
+    }
+    if (typeof tree.type === 'function') {
+      unmount && unmount();
     }
   } else if (!tree.type || typeof tree.type === 'string') {
     if (tree.dom) {
@@ -144,6 +81,20 @@ function diff(old: Awesome.VDom | null, cur: Awesome.VDom | null) {
     if (old) {
       replaceOld(old, (dom) => {
         dom.remove();
+      }, () => {
+        if (old.instance) {
+          old.instance.componentWillUnmount && old.instance.componentWillUnmount();
+        } else if (typeof old.type === 'function') {
+          AwesomeReconciler.dispatchRoot().stateMap?.delete(old.stateIndex!);
+          for (let i = 0; i < old.effectLength!; ++ i) {
+            const effect = AwesomeReconciler.dispatchEffect().effectHooks[i + old.effectIndex!][0];
+            if (effect) {
+              effect();
+            }
+          }
+          AwesomeReconciler.dispatchEffect().effectHooks.splice(old.effectIndex!, old.effectLength);
+          AwesomeReconciler.dispatchState().state.splice(old.stateIndex!, old.stateLength);
+        }
       });
     }
   } else if (!old) {
@@ -183,8 +134,17 @@ function diff(old: Awesome.VDom | null, cur: Awesome.VDom | null) {
             }
           }
         }
+        if (cur.instance) {
+          if (!(cur.instance.shouldComponentUpdate ? cur.instance.shouldComponentUpdate(cur.props, cur.instance.state) : true)) {
+            cur.children = old.children;
+            return;
+          }
+        }
         for (let i = 0; i < Math.max(old.children.length, cur.children.length); ++ i) {
           diff(old.children[i] as Awesome.VDom, cur.children[i] as Awesome.VDom);
+        }
+        if (cur.instance) {
+          cur.instance.componentDidUpdate && cur.instance.componentDidUpdate();
         }
       } else {
         cur.dom = old.dom;
@@ -212,13 +172,13 @@ function diff(old: Awesome.VDom | null, cur: Awesome.VDom | null) {
       } else {
         cur.dom = old.dom;
         if (typeof cur.children === 'string') {
-            old.dom!.innerText = cur.children;
+          old.dom!.innerText = cur.children;
         } else {
           const fragment = document.createDocumentFragment();
           for (const child of cur.children) {
             _render(child, fragment);
           }
-          old.dom!.replaceWith(old.dom!, fragment);
+      old.dom!.replaceWith(old.dom!, fragment);
         }
       }
     }
@@ -229,35 +189,35 @@ function render(
     element: Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element> | Awesome.AwesomeElement | Awesome.Node,
     container: Awesome.Container | null,
     callback?: () => void) {
-  container && container.childNodes.forEach((child) => {
-    child.remove();
-  });
-
-  const vdom: Awesome.VDom = {
-    parent: null,
-    children: [],
-    brother: null,
-    hooks: [],
-    patches: [],
-    props: {},
-    dom: container as HTMLElement,
-  };
-  build(element, vdom);
-  let isDispatching: null | NodeJS.Timer = null;
-  vdom.dispatchUpdate = function() {
+  if (container) {
+    while (container.childNodes.length) {
+      container.childNodes[0].remove();
+    }
+  }
+  const root = AwesomeReconciler.createRoot(container);
+  AwesomeReconciler.build(element, root);
+  let isDispatching: null | NodeJS.Timeout = null;
+  root.dispatchUpdate = function() {
     if (!isDispatching) {
       isDispatching = setTimeout(() => {
-        vdom.patches.forEach((patch) => {
-          if (!patch.isForce) {
+        for (const patch of root.patches) {
+          if (patch.isForce) {
             Object.assign(patch.instance.state, patch.state);
+          } else if (!(patch.instance.shouldComponentUpdate ? patch.instance.shouldComponentUpdate(patch.instance.props, {
+            ...patch.instance.state,
+            ...patch.state,
+          }) : false)) {
+            Object.assign(patch.instance.state, patch.state);
+          } else {
+            continue;
           }
-          const cur: Awesome.VDom = {...patch.instance._node!};
-          const next = build(patch.instance.render(), null, 0, patch.instance._node?.children && Array.isArray(patch.instance._node.children) ? patch.instance._node?.children[0] : undefined);
-          cur.children = next ? (typeof next === 'string' ? next : [next]) : [];
-          diff(patch.instance._node!, cur);
-          patch.instance._node!.children = cur.children;
-        });
-        vdom.patches = [];
+        }
+        const cur: Awesome.VDom = {...root};
+        const next = AwesomeReconciler.build(root.children[0], null, 0, Array.isArray(root.children) ? root.children[0] : undefined);
+        cur.children = next ? (typeof next === 'string' ? next : [next]) : [];
+        diff(root.children[0], cur.children[0]);
+        root.children = cur.children;
+        root.patches = [];
         isDispatching = null;
       }, 0);
     } else {
@@ -266,7 +226,7 @@ function render(
     }
   };
   if (container) {
-    _render((vdom.children as Awesome.VDom[])[0], container);
+    _render((root.children as Awesome.VDom[])[0], container);
   }
 
   callback && callback();
@@ -274,5 +234,5 @@ function render(
 
 export default {
   render,
-  build,
+  diff,
 };
