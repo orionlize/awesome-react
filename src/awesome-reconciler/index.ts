@@ -1,23 +1,27 @@
 import * as Awesome from '@/types';
 import {AwesomeComponent} from '@/component';
 
-let root: Awesome.VDom;
+let _root: Awesome.VDom;
+let _jsx: Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element> | Awesome.AwesomeElement | Awesome.Node;
 
-function createRoot(container: Awesome.Container | null): Awesome.VDom {
-  root = {
+function createRoot(jsx: Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element> | Awesome.AwesomeElement | Awesome.Node, container: Awesome.Container | null): Awesome.VDom {
+  _root = {
     parent: null,
     children: [],
     brother: null,
     patches: [],
     props: {},
     dom: container as HTMLElement,
-    stateMap: new Map<number, Awesome.VDom>(),
   };
-  return root;
+  _jsx = jsx;
+  return _root;
 }
 
 function dispatchRoot() {
-  return root;
+  return _root;
+}
+function dispatchJSX() {
+  return _jsx;
 }
 
 function build(
@@ -25,7 +29,7 @@ function build(
     parent: Awesome.VDom | null = null,
     i: number = 0,
     old?: Awesome.VDom,
-): Awesome.VDom | null {
+) {
   if (!element || typeof element !== 'object') {
     if (element && parent) {
       const el: Awesome.VDom = {
@@ -40,7 +44,7 @@ function build(
     }
   } else if ('type' in element) {
     const type = element.type as any;
-    const el: Awesome.VDom = {
+    let el: Awesome.VDom = {
       type,
       parent,
       children: [],
@@ -50,14 +54,24 @@ function build(
     };
     if (typeof type === 'function') {
       if (type.prototype instanceof AwesomeComponent) {
-        const Type = type as new(props: any) => AwesomeComponent;
         if (old && old.type === element.type) {
           el.instance = old.instance!;
+          if (!old.instance!._isDispatching && !(old.instance!.shouldComponentUpdate(element.props, old.instance!.state))) {
+            el.instance.props = element.props;
+            old.instance!.props = element.props;
+            el = old;
+          } else {
+            el.instance.props = element.props;
+            el.instance._updated = true;
+            build(el.instance.render(), el, 0, old && Array.isArray(old.children) ? old.children[i] : undefined);
+          }
+          old.instance!._isDispatching = false;
         } else {
+          const Type = type as new(props: any) => AwesomeComponent;
           el.instance = new Type(element.props);
           el.instance._node = el;
+          build(el.instance.render(), el, 0, old && Array.isArray(old.children) ? old.children[i] : undefined);
         }
-        build(el.instance.render(), el, 0, old && Array.isArray(old.children) ? old.children[i] : undefined);
       } else {
         if (old) {
           el.stateIndex = old.stateIndex;
@@ -74,7 +88,6 @@ function build(
         _stateIndex = el.stateIndex!;
         _effectIndex = el.effectIndex!;
 
-        dispatchRoot().stateMap?.set(el.stateIndex!, el);
         const functionComponent = (type as ((props: any) => Awesome.AwesomeElement<any, any> | null))(element.props);
         if (el.stateLength == null) {
           el.stateLength = getStateStartIndex() - el.stateIndex!;
@@ -88,7 +101,7 @@ function build(
       if (Array.isArray(element.props.children) && el) {
         let _i = 0;
         for (const child of element.props.children) {
-          build(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, el, _i, old && Array.isArray(old.children) ? old.children[_i] : undefined);
+          build(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, el, 0, old && Array.isArray(old.children) ? old.children[_i] : old);
           ++ _i;
         }
       }
@@ -97,17 +110,11 @@ function build(
     if (el && parent) {
       (parent.children as Awesome.VDom[]).push(el);
     }
-
-    return el;
   } else if (Array.isArray(element)) {
-    let _i = 0;
     for (const child of element) {
-      build(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, parent, _i, old && Array.isArray(old.children) ? old.children[_i] : undefined);
-      ++ _i;
+      build(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, parent, 0, old);
     }
   }
-
-  return null;
 }
 
 const _state: any[] = [];
@@ -150,6 +157,7 @@ export default {
   getStateStartIndex,
   createRoot,
   dispatchRoot,
+  dispatchJSX,
   dispatchEffect,
   getEffectStartIndex,
 };

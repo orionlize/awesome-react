@@ -38,7 +38,6 @@ interface VDom<P extends {children: ChildrenNode | string} = {children: Children
   patches: {instance: AwesomeComponent, state?: {}, isForce?: boolean}[]
   dispatchUpdate?: () => void
   dom?: HTMLElement | null
-  stateMap?: Map<number, VDom>
   effectIndex?: number
   effectLength?: number
 }

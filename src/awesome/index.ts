@@ -80,36 +80,12 @@ function useState<T>(initial: T | (() => T)): [T, (val: T) => void] {
     return (val: T) => {
       if (state[_] === val) return;
       state[_] = val;
-      if (AwesomeReconciler.dispatchRoot().stateMap!.size > 0) {
-        const keys = Array.from(AwesomeReconciler.dispatchRoot().stateMap?.keys()!);
-        let l = 0; let r = keys.length - 1;
-        let mid: number;
-        while (l <= r) {
-          mid = l + (r - l >> 1);
-          if (keys[mid] < _) {
-            l = mid + 1;
-          } else if (keys[mid] > _) {
-            r = mid - 1;
-          } else {
-            l = mid;
-            r = mid;
-            break;
-          }
-        }
-        const newIndex = setStateIndex(keys[Math.min(l, r)]);
-        const old = AwesomeReconciler.dispatchRoot().stateMap?.get(newIndex)!;
-        const newNode = {...AwesomeReconciler.dispatchRoot().stateMap?.get(newIndex)};
-        const cur = AwesomeReconciler.build(newNode, null, 0, old);
-
-        if (cur) {
-          cur.parent = old.parent;
-        }
-
-        AwesomeDOM.diff(old, cur);
-        if (cur) {
-          old.children = cur.children;
-        }
-      }
+      const root = AwesomeReconciler.dispatchRoot();
+      const cur = {...root};
+      cur.children = [];
+      AwesomeReconciler.build(AwesomeReconciler.dispatchJSX(), cur, 0, root.children[0] as any);
+      AwesomeDOM.diff(root.children[0] as Awesome.VDom, cur.children[0] as Awesome.VDom);
+      root.children = cur.children;
     };
   })(index);
 

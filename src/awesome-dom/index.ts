@@ -53,6 +53,7 @@ function _render(
     if (typeof node.type === 'function') {
       if (node.instance) {
         node.instance.componentDidMount && node.instance.componentDidMount();
+        node.instance._updated = false;
       }
     }
   }
@@ -85,7 +86,6 @@ function diff(old: Awesome.VDom | null, cur: Awesome.VDom | null) {
         if (old.instance) {
           old.instance.componentWillUnmount && old.instance.componentWillUnmount();
         } else if (typeof old.type === 'function') {
-          AwesomeReconciler.dispatchRoot().stateMap?.delete(old.stateIndex!);
           for (let i = 0; i < old.effectLength!; ++ i) {
             const effect = AwesomeReconciler.dispatchEffect().effectHooks[i + old.effectIndex!][0];
             if (effect) {
@@ -134,17 +134,12 @@ function diff(old: Awesome.VDom | null, cur: Awesome.VDom | null) {
             }
           }
         }
-        if (cur.instance) {
-          if (!(cur.instance.shouldComponentUpdate ? cur.instance.shouldComponentUpdate(cur.props, cur.instance.state) : true)) {
-            cur.children = old.children;
-            return;
-          }
-        }
         for (let i = 0; i < Math.max(old.children.length, cur.children.length); ++ i) {
           diff(old.children[i] as Awesome.VDom, cur.children[i] as Awesome.VDom);
         }
-        if (cur.instance) {
+        if (cur.instance && cur.instance._updated) {
           cur.instance.componentDidUpdate && cur.instance.componentDidUpdate();
+          cur.instance._updated = false;
         }
       } else {
         cur.dom = old.dom;
@@ -178,7 +173,7 @@ function diff(old: Awesome.VDom | null, cur: Awesome.VDom | null) {
           for (const child of cur.children) {
             _render(child, fragment);
           }
-      old.dom!.replaceWith(old.dom!, fragment);
+          old.dom!.replaceWith(old.dom!, fragment);
         }
       }
     }
@@ -194,7 +189,7 @@ function render(
       container.childNodes[0].remove();
     }
   }
-  const root = AwesomeReconciler.createRoot(container);
+  const root = AwesomeReconciler.createRoot(element, container);
   AwesomeReconciler.build(element, root);
   let isDispatching: null | NodeJS.Timeout = null;
   root.dispatchUpdate = function() {
@@ -202,19 +197,26 @@ function render(
       isDispatching = setTimeout(() => {
         for (const patch of root.patches) {
           if (patch.isForce) {
-            Object.assign(patch.instance.state, patch.state);
-          } else if (!(patch.instance.shouldComponentUpdate ? patch.instance.shouldComponentUpdate(patch.instance.props, {
+            patch.instance.state = {...patch.instance.state};
+            patch.instance._isDispatching = true;
+            patch.instance._updated = true;
+          } else if (patch.instance.shouldComponentUpdate(patch.instance.props, {
             ...patch.instance.state,
             ...patch.state,
-          }) : false)) {
-            Object.assign(patch.instance.state, patch.state);
+          })) {
+            patch.instance.state = {
+              ...patch.instance.state,
+              ...patch.state,
+            };
+            patch.instance._isDispatching = true;
+            patch.instance._updated = true;
           } else {
             continue;
           }
         }
         const cur: Awesome.VDom = {...root};
-        const next = AwesomeReconciler.build(root.children[0], null, 0, Array.isArray(root.children) ? root.children[0] : undefined);
-        cur.children = next ? (typeof next === 'string' ? next : [next]) : [];
+        cur.children = [];
+        AwesomeReconciler.build(element, cur, 0, root.children[0] as any);
         diff(root.children[0] as Awesome.VDom, cur.children[0] as Awesome.VDom);
         root.children = cur.children;
         root.patches = [];

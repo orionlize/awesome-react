@@ -7,6 +7,8 @@ export class AwesomeComponent<P = {}, S = {}, SS = {}> implements React.Componen
   state: S = {} as S
 
   _node?: Awesome.VDom
+  _isDispatching: boolean = false
+  _updated: boolean = false
 
   setState(_state: any) {
     let _parent = this._node?.parent || this._node;
@@ -38,7 +40,9 @@ export class AwesomeComponent<P = {}, S = {}, SS = {}> implements React.Componen
   }
 
   // componentDidCatch?: () => void
-  shouldComponentUpdate?(nextProps: P, nextState: S): boolean
+  shouldComponentUpdate(nextProps: P, nextState: S) {
+    return this.props !== nextProps || this.state !== nextState;
+  }
   componentDidMount?(): void
   componentDidUpdate?(): void
   componentWillUnmount?(): void
