@@ -57,10 +57,8 @@ function build(
         if (old && old.type === element.type) {
           el.instance = old.instance!;
           if (!old.instance!._isDispatching && !(old.instance!.shouldComponentUpdate(element.props, old.instance!.state))) {
-            console.log(old, i);
-
             build(el.instance.render(), el, 0, old && Array.isArray(old.children) ? old.children[0] : undefined);
-            el.props = element.props;
+            el.instance.props = element.props;
           } else {
             el.instance.props = element.props;
             el.instance._updated = true;
@@ -101,8 +99,12 @@ function build(
       if (Array.isArray(element.props.children) && el) {
         let _i = 0;
         for (const child of element.props.children) {
-          build(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, el, i + _i, old && Array.isArray(old.children) ? old.children[_i] : undefined);
-          ++ _i;
+          build(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, el, _i, old && Array.isArray(old.children) ? old.children[_i]: undefined);
+          if (Array.isArray(child)) {
+            _i += child.length;
+          } else {
+            ++ _i;
+          }
         }
       }
     }
@@ -113,8 +115,12 @@ function build(
   } else if (Array.isArray(element)) {
     let _i = 0;
     for (const child of element) {
-      build(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, parent, i + _i, old && Array.isArray(old.parent?.children) ? old.parent?.children[_i + i] : undefined);
-      ++ _i;
+      build(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, parent, _i, old && Array.isArray(old.parent?.children) ? old.parent?.children[_i + i] : undefined);
+      if (Array.isArray(child)) {
+        _i += child.length;
+      } else {
+        ++ _i;
+      }
     }
   }
 }

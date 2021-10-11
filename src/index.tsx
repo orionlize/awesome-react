@@ -99,6 +99,7 @@ class Bpp extends AwesomeComponent<{}, {}, {}> {
         show && new Array(10).fill(0).map((_, index) => <Cpp cb={this.change} data={data} />)
       }
       <App />
+      <App></App>
     </div>;
   }
 }

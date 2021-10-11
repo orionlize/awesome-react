@@ -222,6 +222,7 @@ function render(
           }
         }
         const cur: Awesome.VDom = {...root};
+
         cur.children = [];
         AwesomeReconciler.build(element, cur, 0, root.children[0] as any);
         diff(root.children[0] as Awesome.VDom, cur.children[0] as Awesome.VDom);
@@ -236,7 +237,6 @@ function render(
   };
   if (container) {
     _render((root.children as Awesome.VDom[])[0], container);
-    console.log(root);
   }
 
   callback && callback();
