@@ -44,7 +44,7 @@ function build(
     }
   } else if ('type' in element) {
     const type = element.type as any;
-    let el: Awesome.VDom = {
+    const el: Awesome.VDom = {
       type,
       parent,
       children: [],
@@ -57,20 +57,21 @@ function build(
         if (old && old.type === element.type) {
           el.instance = old.instance!;
           if (!old.instance!._isDispatching && !(old.instance!.shouldComponentUpdate(element.props, old.instance!.state))) {
-            el.instance.props = element.props;
-            old.instance!.props = element.props;
-            el = old;
+            console.log(old, i);
+
+            build(el.instance.render(), el, 0, old && Array.isArray(old.children) ? old.children[0] : undefined);
+            el.props = element.props;
           } else {
             el.instance.props = element.props;
             el.instance._updated = true;
-            build(el.instance.render(), el, 0, old && Array.isArray(old.children) ? old.children[i] : undefined);
+            build(el.instance.render(), el, 0, old && Array.isArray(old.children) ? old.children[0] : undefined);
           }
           old.instance!._isDispatching = false;
         } else {
           const Type = type as new(props: any) => AwesomeComponent;
           el.instance = new Type(element.props);
           el.instance._node = el;
-          build(el.instance.render(), el, 0, old && Array.isArray(old.children) ? old.children[i] : undefined);
+          build(el.instance.render(), el, 0, old && Array.isArray(old.children) ? old.children[0] : undefined);
         }
       } else {
         if (old) {
@@ -87,7 +88,6 @@ function build(
         }
         _stateIndex = el.stateIndex!;
         _effectIndex = el.effectIndex!;
-
         const functionComponent = (type as ((props: any) => Awesome.AwesomeElement<any, any> | null))(element.props);
         if (el.stateLength == null) {
           el.stateLength = getStateStartIndex() - el.stateIndex!;
@@ -95,13 +95,13 @@ function build(
         if (el.effectLength == null) {
           el.effectLength = getEffectStartIndex() - el.effectIndex!;
         }
-        build(functionComponent, el, 0, old && Array.isArray(old.children) ? old.children[i] : undefined);
+        build(functionComponent, el, 0, old && Array.isArray(old.children) ? old.children[0] : undefined);
       }
     } else if (element.props && element.props.children) {
       if (Array.isArray(element.props.children) && el) {
         let _i = 0;
         for (const child of element.props.children) {
-          build(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, el, 0, old && Array.isArray(old.children) ? old.children[_i] : old);
+          build(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, el, i + _i, old && Array.isArray(old.children) ? old.children[_i] : undefined);
           ++ _i;
         }
       }
@@ -111,8 +111,10 @@ function build(
       (parent.children as Awesome.VDom[]).push(el);
     }
   } else if (Array.isArray(element)) {
+    let _i = 0;
     for (const child of element) {
-      build(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, parent, 0, old);
+      build(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, parent, i + _i, old && Array.isArray(old.parent?.children) ? old.parent?.children[_i + i] : undefined);
+      ++ _i;
     }
   }
 }

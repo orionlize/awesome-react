@@ -53,13 +53,12 @@ function _render(
     if (typeof node.type === 'function') {
       if (node.instance) {
         node.instance.componentDidMount && node.instance.componentDidMount();
-        node.instance._updated = false;
       }
     }
   }
 }
 
-function replaceOld(tree: Awesome.VDom, handler: (dom: HTMLElement) => void, unmount?: () => void) {
+function replaceOld(tree: Awesome.VDom, handler: (dom: Awesome.VDom) => void, unmount?: () => void) {
   if (typeof tree.type === 'function' || tree.type === Fragment) {
     if (Array.isArray(tree.children)) {
       for (const child of tree.children) {
@@ -70,18 +69,18 @@ function replaceOld(tree: Awesome.VDom, handler: (dom: HTMLElement) => void, unm
       unmount && unmount();
     }
   } else if (!tree.type || typeof tree.type === 'string') {
-    if (tree.dom) {
-      handler(tree.dom);
-      tree.dom = null;
-    }
+    handler(tree);
   }
 }
 
 function diff(old: Awesome.VDom | null, cur: Awesome.VDom | null) {
   if (!cur) {
     if (old) {
-      replaceOld(old, (dom) => {
-        dom.remove();
+      replaceOld(old, (vdom) => {
+        if (vdom.dom) {
+          vdom.dom.remove();
+          vdom.dom = null;
+        }
       }, () => {
         if (old.instance) {
           old.instance.componentWillUnmount && old.instance.componentWillUnmount();
@@ -151,17 +150,25 @@ function diff(old: Awesome.VDom | null, cur: Awesome.VDom | null) {
       if (!old.type || typeof old.type === 'string') {
         old.dom?.remove();
         old.dom = null;
+        _render(cur, cur.parent?.dom!);
       } else if (typeof old.type === 'function') {
         cur.dom = old.dom;
-        replaceOld(old, (dom) => {
-          if (typeof cur.children === 'string') {
-            dom.innerText = cur.children;
-          } else {
-            const fragment = document.createDocumentFragment();
-            for (const child of cur.children) {
-              _render(child, fragment);
+        replaceOld(old, (vdom) => {
+          if (vdom.dom) {
+            if (typeof cur.children === 'string') {
+              vdom.dom.innerText = cur.children;
+              cur.dom = vdom.dom.childNodes.item(vdom.dom.childNodes.length - 1) as HTMLElement;
+            } else if (typeof cur.type === 'function') {
+              const fragment = document.createDocumentFragment();
+              for (const child of cur.children) {
+                _render(child, fragment);
+              }
+              vdom.dom.replaceWith(fragment);
+            } else if (typeof cur.type === 'string') {
+              vdom.dom.remove();
+              vdom.dom = null;
+              _render(cur, cur.parent?.dom!);
             }
-            dom.replaceWith(dom, fragment);
           }
         });
       } else {
@@ -191,7 +198,7 @@ function render(
   }
   const root = AwesomeReconciler.createRoot(element, container);
   AwesomeReconciler.build(element, root);
-  let isDispatching: null | NodeJS.Timeout = null;
+  let isDispatching: null | number = null;
   root.dispatchUpdate = function() {
     if (!isDispatching) {
       isDispatching = setTimeout(() => {
@@ -229,6 +236,7 @@ function render(
   };
   if (container) {
     _render((root.children as Awesome.VDom[])[0], container);
+    console.log(root);
   }
 
   callback && callback();

@@ -98,7 +98,7 @@ class Bpp extends AwesomeComponent<{}, {}, {}> {
       {
         show && new Array(10).fill(0).map((_, index) => <Cpp cb={this.change} data={data} />)
       }
-      <img style={{width: '250px', height: 'auto'}} src='https://gimg2.baidu.com/image_search/src=http%3A%2F%2Fpic1.zhimg.com%2Fv2-3d0e684c05c81488f916134c4a09e90d_1440w.jpg%3Fsource%3D172ae18b&refer=http%3A%2F%2Fpic1.zhimg.com&app=2002&size=f9999,10000&q=a80&n=0&g=0n&fmt=jpeg?sec=1636551529&t=3654dee15970cfb3953ff96c73b19e0f' />
+      <App />
     </div>;
   }
 }
