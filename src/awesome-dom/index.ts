@@ -133,8 +133,18 @@ function diff(old: Awesome.VDom | null, cur: Awesome.VDom | null) {
             }
           }
         }
-        for (let i = 0; i < Math.max(old.children.length, cur.children.length); ++ i) {
-          diff(old.children[i] as Awesome.VDom, cur.children[i] as Awesome.VDom);
+        let curIndex = 0;
+        for (let i = 0; i < old.children.length; ++ i) {
+          if (curIndex >= cur.children.length) {
+            diff(old.children[i] as Awesome.VDom, null);
+          } else if (diff(old.children[i] as Awesome.VDom, cur.children[curIndex] as Awesome.VDom)) {
+            ++ curIndex;
+          }
+        }
+        if (curIndex < cur.children.length) {
+          for (let i = curIndex; i < cur.children.length; ++ i) {
+            diff(null, cur.children[i] as Awesome.VDom);
+          }
         }
         if (cur.instance && cur.instance._updated) {
           cur.instance.componentDidUpdate && cur.instance.componentDidUpdate();
@@ -146,45 +156,37 @@ function diff(old: Awesome.VDom | null, cur: Awesome.VDom | null) {
           cur.dom!.nodeValue = cur.children as string;
         }
       }
+      return true;
     } else {
       if (!old.type || typeof old.type === 'string') {
         old.dom?.remove();
         old.dom = null;
-        _render(cur, cur.parent?.dom!);
-      } else if (typeof old.type === 'function') {
+      } else {
         cur.dom = old.dom;
         replaceOld(old, (vdom) => {
           if (vdom.dom) {
-            if (typeof cur.children === 'string') {
-              vdom.dom.innerText = cur.children;
-              cur.dom = vdom.dom.childNodes.item(vdom.dom.childNodes.length - 1) as HTMLElement;
-            } else if (typeof cur.type === 'function') {
-              const fragment = document.createDocumentFragment();
-              for (const child of cur.children) {
-                _render(child, fragment);
+            vdom.dom.remove();
+            vdom.dom = null;
+          }
+        }, () => {
+          if (old.instance) {
+            old.instance.componentWillUnmount && old.instance.componentWillUnmount();
+          } else if (typeof old.type === 'function') {
+            for (let i = 0; i < old.effectLength!; ++ i) {
+              const effect = AwesomeReconciler.dispatchEffect().effectHooks[i + old.effectIndex!][0];
+              if (effect) {
+                effect();
               }
-              vdom.dom.replaceWith(fragment);
-            } else if (typeof cur.type === 'string') {
-              vdom.dom.remove();
-              vdom.dom = null;
-              _render(cur, cur.parent?.dom!);
             }
+            AwesomeReconciler.dispatchEffect().effectHooks.splice(old.effectIndex!, old.effectLength);
+            AwesomeReconciler.dispatchState().state.splice(old.stateIndex!, old.stateLength);
           }
         });
-      } else {
-        cur.dom = old.dom;
-        if (typeof cur.children === 'string') {
-          old.dom!.innerText = cur.children;
-        } else {
-          const fragment = document.createDocumentFragment();
-          for (const child of cur.children) {
-            _render(child, fragment);
-          }
-          old.dom!.replaceWith(old.dom!, fragment);
-        }
       }
     }
   }
+
+  return false;
 }
 
 function render(

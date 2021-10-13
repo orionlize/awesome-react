@@ -42,6 +42,11 @@ interface VDom<P extends {children: ChildrenNode | string} = {children: Children
   effectLength?: number
 }
 
+interface ListNode<T> {
+  value: T
+  next: ListNode<T> | null
+}
+
 export {
   Node,
   NodeType,
@@ -62,4 +67,5 @@ export {
   FunctionComponentElement,
   Attributes,
   VDom,
+  ListNode,
 };

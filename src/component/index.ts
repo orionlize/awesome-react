@@ -1,4 +1,5 @@
 import * as Awesome from '@/types';
+import {Map as createMap, is as equal} from 'immutable';
 import React from 'react';
 
 export class AwesomeComponent<P = {}, S = {}, SS = {}> implements React.Component<P, S, SS> {
@@ -41,7 +42,7 @@ export class AwesomeComponent<P = {}, S = {}, SS = {}> implements React.Componen
 
   // componentDidCatch?: () => void
   shouldComponentUpdate(nextProps: P, nextState: S) {
-    return this.props !== nextProps || this.state !== nextState;
+    return !equal(createMap(this.props), createMap(nextProps)) || !equal(createMap(this.state), createMap(nextState));
   }
   componentDidMount?(): void
   componentDidUpdate?(): void

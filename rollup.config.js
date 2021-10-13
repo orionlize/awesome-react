@@ -1,6 +1,7 @@
 import typescript from 'rollup-plugin-typescript';
 import babel from 'rollup-plugin-babel';
 import {eslint} from 'rollup-plugin-eslint';
+import resolve from 'rollup-plugin-node-resolve';
 import uglify from '@lopatnov/rollup-plugin-uglify';
 import hotreload from './hot/index';
 
@@ -11,6 +12,7 @@ export default [{
     format: 'iife',
     sourcemap: true,
   },
+  external: ['Immutable'],
 
   plugins: [
     babel(),
@@ -19,6 +21,7 @@ export default [{
       exclude: ['node_modules/**'],
     }),
     typescript(),
+    resolve(),
     // uglify(),
     hotreload(),
   ],

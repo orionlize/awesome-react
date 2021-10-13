@@ -125,7 +125,10 @@ function build(
   }
 }
 
-const _state: any[] = [];
+const _state: Awesome.ListNode<any> = {
+  value: null,
+  next: null,
+};
 const _effectHooks: any[][] = [];
 let _effectIndex = 0;
 let _stateIndex = 0;

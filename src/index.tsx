@@ -86,15 +86,18 @@ class Bpp extends AwesomeComponent<{}, {}, {}> {
     });
   }
 
+  change2 = () => {
+    const {show} = this.state;
+    this.setState({
+      show: !show,
+    });
+  }
+
   render() {
     const {data, show} = this.state;
 
     return <div>
-      <h1 onClick={() => {
-        this.setState({
-          show: !show,
-        });
-      }}>{data}</h1>
+      <h1 onClick={this.change2}>{data}</h1>
       {
         show && new Array(10).fill(0).map((_, index) => <Cpp cb={this.change} data={data} />)
       }
