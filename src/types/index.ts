@@ -31,20 +31,21 @@ interface VDom<P extends {children: ChildrenNode | string} = {children: Children
   parent: VDom<P> | null
   children: VDom<P>[] | string
   brother: VDom<P> | null
-  stateIndex?: number
-  stateLength?: number
+  stateStart?: ListNode<any>
+  stateEnd?: ListNode<any>
   props: any
   instance?: AwesomeComponent
   patches: {instance: AwesomeComponent, state?: {}, isForce?: boolean}[]
   dispatchUpdate?: () => void
   dom?: HTMLElement | null
-  effectIndex?: number
-  effectLength?: number
+  effectStart?: ListNode<any[] | null>
+  effectEnd?: ListNode<any[] | null>
 }
 
 interface ListNode<T> {
   value: T
-  next: ListNode<T> | null
+  next?: ListNode<T>
+  perv?: ListNode<T>
 }
 
 export {

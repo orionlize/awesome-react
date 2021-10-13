@@ -24,6 +24,53 @@ function dispatchJSX() {
   return _jsx;
 }
 
+let _state: Awesome.ListNode<any> = {
+  value: null,
+};
+
+let _effect: Awesome.ListNode<any[] | null> = {
+  value: null,
+};
+
+let _stateTail = _state;
+let _effectTail = _effect;
+
+function _appendState(node: Awesome.ListNode<any>) {
+  if (node.next == null) {
+    node.next = {
+      value: null,
+      perv: node,
+    };
+    _stateTail = node.next;
+  }
+  _state = node.next;
+}
+
+function _appendEffect(node: Awesome.ListNode<any | null>) {
+  if (node.next == null) {
+    node.next = {
+      value: null,
+      perv: node,
+    };
+    _effectTail = node.next;
+  }
+  _effect = node.next;
+}
+
+function dispatchState() {
+  return {
+    state: _state,
+    appendState: _appendState,
+  };
+}
+
+function dispatchEffect() {
+  return {
+    effectHooks: _effect,
+    appendEffect: _appendEffect,
+  };
+}
+
 function build(
     element: Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element> | Awesome.AwesomeElement | Awesome.Node,
     parent: Awesome.VDom | null = null,
@@ -73,29 +120,31 @@ function build(
         }
       } else {
         if (old) {
-          el.stateIndex = old.stateIndex;
-          el.effectIndex = old.effectIndex;
-          el.stateLength = old.stateLength!;
-          el.effectLength = old.effectLength!;
+          el.stateStart = old.stateStart;
+          el.stateEnd = old.stateEnd;
+          el.effectStart = old.effectStart;
+          el.effectEnd = old.effectEnd;
         }
-        if (el.stateIndex == null) {
-          el.stateIndex = getStateStartIndex();
+        if (el.stateStart == null) {
+          el.stateStart = _stateTail;
         }
-        if (el.effectIndex == null) {
-          el.effectIndex = getEffectStartIndex();
+        if (el.effectStart == null) {
+          el.effectStart = _effectTail;
         }
-        _stateIndex = el.stateIndex!;
-        _effectIndex = el.effectIndex!;
+        _state = el.stateStart;
+        _effect = el.effectStart;
         const functionComponent = (type as ((props: any) => Awesome.AwesomeElement<any, any> | null))(element.props);
-        if (el.stateLength == null) {
-          el.stateLength = getStateStartIndex() - el.stateIndex!;
+        if (el.stateEnd == null) {
+          el.stateEnd = _stateTail;
         }
-        if (el.effectLength == null) {
-          el.effectLength = getEffectStartIndex() - el.effectIndex!;
+        if (el.effectEnd == null) {
+          el.effectEnd = _effectTail;
         }
+
         build(functionComponent, el, 0, old && Array.isArray(old.children) ? old.children[0] : undefined);
       }
     } else if (element.props && element.props.children) {
+      console.log(old?.type, element.type);
       if (Array.isArray(element.props.children) && el) {
         let _i = 0;
         for (const child of element.props.children) {
@@ -114,6 +163,21 @@ function build(
     }
   } else if (Array.isArray(element)) {
     let _i = 0;
+    // if (old && Array.isArray(old.children)) {
+    //   for (let i = 0; i < old.children.length; ++ i) {
+    //     if (_i < element.length) {
+    //       if ((element[_i] as any).type === old.children[i].type) {
+    //         build(element[_i], parent, _i, old.children[i]);
+    //         ++ _i;
+    //       }
+    //     }
+    //   }
+    // }
+
+    // for (let i = _i; i < element.length; ++ i) {
+    //   build(element[i], parent, i, undefined);
+    //   ++ i;
+    // }
     for (const child of element) {
       build(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, parent, _i, old && Array.isArray(old.parent?.children) ? old.parent?.children[_i + i] : undefined);
       if (Array.isArray(child)) {
@@ -125,50 +189,11 @@ function build(
   }
 }
 
-const _state: Awesome.ListNode<any> = {
-  value: null,
-  next: null,
-};
-const _effectHooks: any[][] = [];
-let _effectIndex = 0;
-let _stateIndex = 0;
-
-function getStateStartIndex() {
-  return _state.length;
-}
-function getEffectStartIndex() {
-  return _effectHooks.length;
-}
-
-function dispatchState() {
-  return {
-    state: _state,
-    index: _stateIndex,
-    setStateIndex: (val: number) => {
-      _stateIndex = val;
-      return val;
-    },
-  };
-}
-
-function dispatchEffect() {
-  return {
-    effectHooks: _effectHooks,
-    effectIndex: _effectIndex,
-    setEffectIndex: (val: number) => {
-      _effectIndex = val;
-      return val;
-    },
-  };
-}
-
 export default {
   build,
   dispatchState,
-  getStateStartIndex,
   createRoot,
   dispatchRoot,
   dispatchJSX,
   dispatchEffect,
-  getEffectStartIndex,
 };

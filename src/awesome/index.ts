@@ -66,20 +66,21 @@ function createElement<P1 extends Awesome.HTMLAttributes<T1>, T1 extends HTMLEle
 
 
 function useState<T>(initial: T | (() => T)): [T, (val: T) => void] {
-  const {state, index, setStateIndex} = AwesomeReconciler.dispatchState();
+  const {state, appendState} = AwesomeReconciler.dispatchState();
 
-  if (state[index] == null) {
+
+  if (state.value == null) {
     if (typeof initial === 'function') {
-      state[index] = (initial as Function)();
+      state.value = (initial as Function)();
     } else {
-      state[index] = initial;
+      state.value = initial;
     }
   }
 
-  const set = (function(_: number) {
+  const set = (function(_: Awesome.ListNode<T>) {
     return (val: T) => {
-      if (state[_] === val) return;
-      state[_] = val;
+      if (_.value === val) return;
+      _.value = val;
       const root = AwesomeReconciler.dispatchRoot();
       const cur = {...root};
       cur.children = [];
@@ -87,27 +88,29 @@ function useState<T>(initial: T | (() => T)): [T, (val: T) => void] {
       AwesomeDOM.diff(root.children[0] as Awesome.VDom, cur.children[0] as Awesome.VDom);
       root.children = cur.children;
     };
-  })(index);
+  })(state);
 
-  setStateIndex(index + 1);
-  return [state[index], set];
+  appendState(state);
+
+  return [state.value, set];
 }
 
 function useEffect(cb: () => (() => void) | void, dependencies: any[]) {
-  const {effectHooks, effectIndex, setEffectIndex} = AwesomeReconciler.dispatchEffect();
-  if (!effectHooks[effectIndex]) {
-    effectHooks[effectIndex] = [cb()].concat(dependencies);
+  const {effectHooks, appendEffect} = AwesomeReconciler.dispatchEffect();
+  if (effectHooks.value == null) {
+    effectHooks.value = [cb()].concat(dependencies);
   } else {
-    for (let i = 1; i < effectHooks[effectIndex].length; ++ i) {
-      if (effectHooks[effectIndex][i] !== dependencies[i - 1]) {
-        if (effectHooks[effectIndex][0]) {
-          effectHooks[effectIndex][0]();
+    for (let i = 1; i < effectHooks.value.length; ++ i) {
+      if (effectHooks.value[i] !== dependencies[i - 1]) {
+        if (effectHooks.value[0]) {
+          effectHooks.value[0]();
         }
-        effectHooks[effectIndex] = [cb()].concat(dependencies);
+        effectHooks.value= [cb()].concat(dependencies);
       }
     }
   }
-  setEffectIndex(effectIndex + 1);
+
+  appendEffect(effectHooks);
 }
 
 export default {

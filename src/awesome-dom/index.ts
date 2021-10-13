@@ -73,6 +73,45 @@ function replaceOld(tree: Awesome.VDom, handler: (dom: Awesome.VDom) => void, un
   }
 }
 
+function clearHooks(old: Awesome.VDom) {
+  const p = old.effectStart;
+  while (p && p !== old.effectEnd) {
+    const effect = p.value![0];
+    if (effect && typeof effect === 'function') {
+      effect();
+    }
+    p = p.next;
+  }
+  if (old.stateStart) {
+    if (old.stateStart.perv) {
+      old.stateStart.perv.next = old.stateEnd?.next;
+      if (old.stateEnd?.next) {
+        old.stateEnd.next.perv = old.stateStart.perv;
+      }
+    } else {
+      old.stateStart.value = null;
+      old.stateStart.next = old.stateEnd?.next;
+      if (old.stateEnd?.next) {
+        old.stateEnd.next.perv = old.stateStart;
+      }
+    }
+  }
+  if (old.effectStart) {
+    if (old.effectStart.perv) {
+      old.effectStart.perv.next = old.effectEnd?.next;
+      if (old.effectEnd?.next) {
+        old.effectEnd.next.perv = old.effectStart.perv.next;
+      }
+    } else {
+      old.effectStart.value = null;
+      old.effectStart.next = old.effectEnd?.next;
+      if (old.effectEnd?.next) {
+        old.effectEnd.next.perv = old.effectStart;
+      }
+    }
+  }
+}
+
 function diff(old: Awesome.VDom | null, cur: Awesome.VDom | null) {
   if (!cur) {
     if (old) {
@@ -85,14 +124,7 @@ function diff(old: Awesome.VDom | null, cur: Awesome.VDom | null) {
         if (old.instance) {
           old.instance.componentWillUnmount && old.instance.componentWillUnmount();
         } else if (typeof old.type === 'function') {
-          for (let i = 0; i < old.effectLength!; ++ i) {
-            const effect = AwesomeReconciler.dispatchEffect().effectHooks[i + old.effectIndex!][0];
-            if (effect) {
-              effect();
-            }
-          }
-          AwesomeReconciler.dispatchEffect().effectHooks.splice(old.effectIndex!, old.effectLength);
-          AwesomeReconciler.dispatchState().state.splice(old.stateIndex!, old.stateLength);
+          clearHooks(old);
         }
       });
     }
@@ -172,14 +204,7 @@ function diff(old: Awesome.VDom | null, cur: Awesome.VDom | null) {
           if (old.instance) {
             old.instance.componentWillUnmount && old.instance.componentWillUnmount();
           } else if (typeof old.type === 'function') {
-            for (let i = 0; i < old.effectLength!; ++ i) {
-              const effect = AwesomeReconciler.dispatchEffect().effectHooks[i + old.effectIndex!][0];
-              if (effect) {
-                effect();
-              }
-            }
-            AwesomeReconciler.dispatchEffect().effectHooks.splice(old.effectIndex!, old.effectLength);
-            AwesomeReconciler.dispatchState().state.splice(old.stateIndex!, old.stateLength);
+            clearHooks(old);
           }
         });
       }
