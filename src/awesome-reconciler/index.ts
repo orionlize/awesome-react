@@ -144,16 +144,39 @@ function build(
         build(functionComponent, el, 0, old && Array.isArray(old.children) ? old.children[0] : undefined);
       }
     } else if (element.props && element.props.children) {
-      console.log(old?.type, element.type);
       if (Array.isArray(element.props.children) && el) {
         let _i = 0;
-        for (const child of element.props.children) {
-          build(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, el, _i, old && Array.isArray(old.children) ? old.children[_i]: undefined);
-          if (Array.isArray(child)) {
-            _i += child.length;
-          } else {
-            ++ _i;
+        if (old && Array.isArray(old.children)) {
+          for (let j = 0; j < old.children.length; ++ j) {
+            const child = old.children[j];
+            while (_i < element.props.children.length) {
+              const curChildren = element.props.children[_i];
+              if (!curChildren) {
+                ++ _i;
+                continue;
+              }
+
+              if (Array.isArray(curChildren)) {
+                build(curChildren, el, j, old);
+                j += curChildren.length - 1;
+                ++ _i;
+                break;
+              } else if ((curChildren as any).type === child.type) {
+                build(curChildren, el, _i, child);
+                ++ _i;
+                break;
+              } else {
+                break;
+              }
+            }
+            if (_i >= element.props.children.length) {
+              break;
+            }
           }
+        }
+
+        for (let j = _i; j < element.props.children.length; ++ j) {
+          build(element.props.children[j], el, j, undefined);
         }
       }
     }
@@ -163,29 +186,44 @@ function build(
     }
   } else if (Array.isArray(element)) {
     let _i = 0;
-    // if (old && Array.isArray(old.children)) {
-    //   for (let i = 0; i < old.children.length; ++ i) {
-    //     if (_i < element.length) {
-    //       if ((element[_i] as any).type === old.children[i].type) {
-    //         build(element[_i], parent, _i, old.children[i]);
-    //         ++ _i;
-    //       }
-    //     }
-    //   }
-    // }
+    if (old && Array.isArray(old.children)) {
+      for (let j = i; j < old.children.length; ++ j) {
+        const child = old.children[j];
+        while (_i < element.length) {
+          if (!element[_i]) {
+            ++ _i;
+            continue;
+          }
+          if ((element[_i] as any).type === child.type) {
+            build(element[_i], parent, _i, child);
+            ++ _i;
+            break;
+          } else {
+            break;
+          }
+        }
+        if (_i >= element.length) {
+          break;
+        }
+      }
+    }
+
+    for (let j = _i; j < element.length; ++ j) {
+      build(element[j], parent, j, undefined);
+    }
 
     // for (let i = _i; i < element.length; ++ i) {
     //   build(element[i], parent, i, undefined);
     //   ++ i;
     // }
-    for (const child of element) {
-      build(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, parent, _i, old && Array.isArray(old.parent?.children) ? old.parent?.children[_i + i] : undefined);
-      if (Array.isArray(child)) {
-        _i += child.length;
-      } else {
-        ++ _i;
-      }
-    }
+    // for (const child of element) {
+    //   build(child as Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element>, parent, _i, old && Array.isArray(old.parent?.children) ? old.parent?.children[_i + i] : undefined);
+    //   if (Array.isArray(child)) {
+    //     _i += child.length;
+    //   } else {
+    //     ++ _i;
+    //   }
+    // }
   }
 }
 
