@@ -225,6 +225,7 @@ function render(
   }
   const root = AwesomeReconciler.createRoot(element, container);
   AwesomeReconciler.build(element, root);
+  console.log(root);
   let isDispatching: null | number = null;
   root.dispatchUpdate = function() {
     if (!isDispatching) {
@@ -251,7 +252,9 @@ function render(
         const cur: Awesome.VDom = {...root};
 
         cur.children = [];
-        AwesomeReconciler.build(element, cur, 0, root.children[0] as any);
+        AwesomeReconciler.build(element, cur, 0);
+        console.log(cur);
+
         diff(root.children[0] as Awesome.VDom, cur.children[0] as Awesome.VDom);
         root.children = cur.children;
         root.patches = [];

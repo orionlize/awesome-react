@@ -1,3 +1,4 @@
+import AwesomeReconciler from '@/awesome-reconciler';
 import * as Awesome from '@/types';
 import {Map as createMap, is as equal} from 'immutable';
 import React from 'react';
@@ -12,27 +13,19 @@ export class AwesomeComponent<P = {}, S = {}, SS = {}> implements React.Componen
   _updated: boolean = false
 
   setState(_state: any) {
-    let _parent = this._node?.parent || this._node;
-    while (_parent?.parent) {
-      _parent = _parent.parent;
-    }
-    _parent?.patches.push({
+    this._node?.patches.push({
       instance: this,
       state: _state,
     });
 
-    _parent?.dispatchUpdate && _parent.dispatchUpdate();
+    AwesomeReconciler.dispatchRoot().dispatchUpdate!();
   }
   forceUpdate() {
-    let _parent = this._node?.parent;
-    while (_parent?.parent) {
-      _parent = _parent?.parent;
-    }
-    _parent?.patches.push({
+    this._node?.patches.push({
       instance: this,
       isForce: true,
     });
-    _parent?.dispatchUpdate && _parent.dispatchUpdate();
+    AwesomeReconciler.dispatchRoot().dispatchUpdate!();
   }
   refs: {[key: string]: any} = {}
 

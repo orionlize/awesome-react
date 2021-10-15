@@ -44,6 +44,7 @@ interface VDom<P extends {children: ChildrenNode | string} = {children: Children
 
 interface ListNode<T> {
   value: T
+  future: T
   next?: ListNode<T>
   perv?: ListNode<T>
 }

@@ -69,7 +69,7 @@ class Cpp extends AwesomeComponent<{
 class Bpp extends AwesomeComponent<{}, {}, {}> {
   state = {
     data: Date.now(),
-    show: true,
+    show: false,
   }
 
   componentDidMount() {
