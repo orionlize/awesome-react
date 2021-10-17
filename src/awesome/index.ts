@@ -80,7 +80,7 @@ function useState<T>(initial: T | (() => T)): [T, (val: T) => void] {
   const set = (function(_: Awesome.ListNode<T>) {
     return (val: T) => {
       if (_.value === val) return;
-      _.value = val;
+      _.future = val;
       const root = AwesomeReconciler.dispatchRoot();
       const cur = {...root};
       cur.children = [];
