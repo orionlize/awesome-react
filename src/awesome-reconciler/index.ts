@@ -4,8 +4,6 @@ import {Fragment} from '@/const';
 
 let _root: Awesome.VDom;
 
-const EmptyElement = Symbol('awesome.empty');
-
 function createRoot(container: Awesome.Container | null): Awesome.VDom {
   _root = {
     parent: null,
@@ -248,7 +246,7 @@ function build(
     if (element) {
       el.children = String(element);
     } else {
-      el.type = EmptyElement;
+      el.type = Fragment;
     }
   } else if ('type' in element) {
     const type = element.type as any;
@@ -339,11 +337,11 @@ function multiplex(
         const child = element.props.children[i];
         const _old = (old.children as Awesome.VDom[])[i];
         const newNode: Awesome.VDom = {
-          type: element.type,
+          type: Array.isArray(child) || !child ? Fragment : child.type,
           parent: el,
           brother: Array.isArray(el.children) && i > 0 ? el.children[i - 1] : null,
-          children: [],
-          props: Array.isArray(child) ? {children: child} : child.props,
+          children: Array.isArray(child) ? child : (child.props ? child.props.children : []),
+          props: (Array.isArray(child) ? {children: child} : child.props) || null,
           instance: _old ? _old.instance : undefined,
           patches: _old ? _old.patches : undefined,
         };
@@ -393,6 +391,7 @@ function diff(
           if (Reflect.get(element.props, prop) !== Reflect.get(old.props, prop)) {
             const newNode = multiplex(element, old, node, visitor);
             node.children[visitor] = newNode;
+            newNode.parent = node;
             if (Array.isArray(old.children)) {
               for (let i = 0; i < old.children.length; ++ i) {
                 rebuild(old.children[i], newNode, i);
@@ -404,6 +403,7 @@ function diff(
       } else {
         const newNode = multiplex(element, old, node, visitor);
         node.children[visitor] = newNode;
+        newNode.parent = node;
         if (Array.isArray(old.children)) {
           for (let i = 0; i < old.children.length; ++ i) {
             rebuild(old.children[i], newNode, i);
@@ -434,11 +434,17 @@ function rebuild(
     // 判断类组件是否需要更新组件树
     if (node.patches!.length === 0 || !node.instance.shouldComponentUpdate(node.props, nextState)) {
       (workingNode.children as Awesome.VDom[])[visitor] = node;
+      node.parent = workingNode.children;
     } else {
       Object.assign(node.instance.state, nextState);
+
+      // 待测试是否需要重新创建新的引用
+      workingNode.children[visitor] = node;
+      node.parent = workingNode;
       const result = node.instance.render();
-      debugger;
-      diff(result, workingNode, (node.children as Awesome.VDom[])[0], 0);
+
+      diff(result, workingNode.children[visitor], (node.children as Awesome.VDom[])[0], 0);
+      node.patches = [];
     }
   } else if (typeof node.type === 'function') {
     let p = node.stateStart;
@@ -452,7 +458,7 @@ function rebuild(
       p = p.next;
     }
     if (isUpdate) {
-      diff(node.type(node.props), workingNode.children[visitor], node.children[0], 0);
+      diff(node.type(node.props), workingNode.children[visitor], node.children[0], visitor);
     } else {
       (workingNode.children as Awesome.VDom[])[visitor] = node;
       if (Array.isArray(node.children)) {
@@ -463,21 +469,29 @@ function rebuild(
       }
     }
   } else {
-    (workingNode.children as Awesome.VDom[])[visitor] = node;
-    if (Array.isArray(node.children)) {
-      for (let i = 0; i < node.children.length; ++ i) {
-        const child = node.children[i];
-        if (Array.isArray(child)) {
-          const el: Awesome.VDom = {
-            brother: i > 0 ? node.children[i - 1] : null,
-            parent: node,
-            children: child,
-            props: {children: child},
-          };
-          node.children[i] = el;
-          rebuild(el, node, i);
+    const children = workingNode.children as Awesome.VDom[];
+    if (!children[visitor]) {
+      children[visitor] = node;
+    }
+    if (Array.isArray(children[visitor].children)) {
+      for (let i = 0; i < children[visitor].children.length; ++ i) {
+        const child = children[visitor].children[i];
+        // if (Array.isArray(child)) {
+        //   const el: Awesome.VDom = {
+        //     brother: i > 0 ? children[visitor].children[i - 1] : null,
+        //     parent: node,
+        //     children: child,
+        //     props: {children: child},
+        //   };
+        //   node.children[i] = el;
+        //   rebuild(el, node, i);
+        // } else {
+        //   rebuild(child, node, i);
+        // }
+        if (!node.children[i]) {
+          build(child, children[visitor], i);
         } else {
-          rebuild(child, node, i);
+          rebuild(node.children[i], children[visitor], i);
         }
       }
     }

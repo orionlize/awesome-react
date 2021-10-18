@@ -85,8 +85,8 @@ function useState<T>(initial: T | (() => T)): [T, (val: T) => void] {
       const root = AwesomeReconciler.dispatchRoot();
       const cur = {...root};
       cur.children = [];
-      AwesomeReconciler.build(AwesomeReconciler.dispatchJSX(), cur, 0);
-      AwesomeDOM.diff(root.children[0] as Awesome.VDom, cur.children[0] as Awesome.VDom);
+      // AwesomeReconciler.build(AwesomeReconciler.dispatchJSX(), cur, 0);
+      // AwesomeDOM.diff(root.children[0] as Awesome.VDom, cur.children[0] as Awesome.VDom);
       root.children = cur.children;
     };
   })(state);
