@@ -74,7 +74,7 @@ function replaceOld(tree: Awesome.VDom, handler: (dom: Awesome.VDom) => void, un
 }
 
 function clearHooks(old: Awesome.VDom) {
-  const p = old.effectStart;
+  let p = old.effectStart;
   while (p && p !== old.effectEnd) {
     const effect = p.value![0];
     if (effect && typeof effect === 'function') {
@@ -223,39 +223,37 @@ function render(
       container.childNodes[0].remove();
     }
   }
-  const root = AwesomeReconciler.createRoot(element, container);
+  const root = AwesomeReconciler.createRoot(container);
   AwesomeReconciler.build(element, root);
-  console.log(root);
   let isDispatching: null | number = null;
   root.dispatchUpdate = function() {
     if (!isDispatching) {
       isDispatching = setTimeout(() => {
-        for (const patch of root.patches) {
-          if (patch.isForce) {
-            patch.instance.state = {...patch.instance.state};
-            patch.instance._isDispatching = true;
-            patch.instance._updated = true;
-          } else if (patch.instance.shouldComponentUpdate(patch.instance.props, {
-            ...patch.instance.state,
-            ...patch.state,
-          })) {
-            patch.instance.state = {
-              ...patch.instance.state,
-              ...patch.state,
-            };
-            patch.instance._isDispatching = true;
-            patch.instance._updated = true;
-          } else {
-            continue;
-          }
-        }
+        // for (const patch of root.patches) {
+        //   if (patch.isForce) {
+        //     patch.instance.state = {...patch.instance.state};
+        //     patch.instance._isDispatching = true;
+        //     patch.instance._updated = true;
+        //   } else if (patch.instance.shouldComponentUpdate(patch.instance.props, {
+        //     ...patch.instance.state,
+        //     ...patch.state,
+        //   })) {
+        //     patch.instance.state = {
+        //       ...patch.instance.state,
+        //       ...patch.state,
+        //     };
+        //     patch.instance._isDispatching = true;
+        //     patch.instance._updated = true;
+        //   } else {
+        //     continue;
+        //   }
+        // }
         const cur: Awesome.VDom = {...root};
 
         cur.children = [];
-        AwesomeReconciler.build(element, cur, 0);
+        AwesomeReconciler.rebuild((root.children as Awesome.VDom[])[0], cur, 0);
         console.log(cur);
-
-        diff(root.children[0] as Awesome.VDom, cur.children[0] as Awesome.VDom);
+        // diff(root.children[0] as Awesome.VDom, cur.children[0] as Awesome.VDom);
         root.children = cur.children;
         root.patches = [];
         isDispatching = null;
@@ -267,6 +265,7 @@ function render(
   };
   if (container) {
     _render((root.children as Awesome.VDom[])[0], container);
+    console.log(root);
   }
 
   callback && callback();

@@ -3,9 +3,10 @@ import {AwesomeComponent} from '@/component';
 import {Fragment} from '@/const';
 
 let _root: Awesome.VDom;
-let _jsx: Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element> | Awesome.AwesomeElement | Awesome.Node;
 
-function createRoot(jsx: Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element> | Awesome.AwesomeElement | Awesome.Node, container: Awesome.Container | null): Awesome.VDom {
+const EmptyElement = Symbol('awesome.empty');
+
+function createRoot(container: Awesome.Container | null): Awesome.VDom {
   _root = {
     parent: null,
     children: [],
@@ -14,15 +15,11 @@ function createRoot(jsx: Awesome.DOMElement<Awesome.DOMAttributes<Element>, Elem
     props: {},
     dom: container as HTMLElement,
   };
-  _jsx = jsx;
   return _root;
 }
 
 function dispatchRoot() {
   return _root;
-}
-function dispatchJSX() {
-  return _jsx;
 }
 
 let _state: Awesome.ListNode<any> = {
@@ -251,7 +248,7 @@ function build(
     if (element) {
       el.children = String(element);
     } else {
-      el.type = Fragment;
+      el.type = EmptyElement;
     }
   } else if ('type' in element) {
     const type = element.type as any;
@@ -290,24 +287,23 @@ function build(
       }
     } else if (element.props && element.props.children) {
       if (Array.isArray(element.props.children) && el) {
-        let _i = 0;
-        while (_i < element.props.children.length) {
-          const curChildren = element.props.children[_i];
+        let i = 0;
+        while (i < element.props.children.length) {
+          const curChildren = element.props.children[i];
           if (Array.isArray(curChildren)) {
             const child = {
               type: Fragment,
               parent: el,
               children: [],
-              brother: el && Array.isArray(el.children) && _i > 0 ? el.children[_i - 1] : null,
+              brother: el && Array.isArray(el.children) && i > 0 ? el.children[i - 1] : null,
               props: {children: curChildren},
-              patches: [],
             };
             el.children[visitor] = child;
-            build(curChildren, child, _i);
+            build(curChildren, child, i);
           } else {
-            build(curChildren, el, _i);
+            build(curChildren, el, i);
           }
-          ++ _i;
+          ++ i;
         }
       }
     }
@@ -316,10 +312,10 @@ function build(
       (parent.children as Awesome.VDom[])[visitor] = el;
     }
   } else if (Array.isArray(element)) {
-    let _i = 0;
-    while (_i < element.length) {
-      build(element[_i], parent, _i);
-      ++ _i;
+    let i = 0;
+    while (i < element.length) {
+      build(element[i], parent, i);
+      ++ i;
     }
   }
 }
@@ -330,9 +326,10 @@ function multiplex(
     parent: Awesome.VDom,
     visitor: number) {
   const el: Awesome.VDom = {
-    parent: parent,
+    parent: parent.parent,
     brother: Array.isArray(parent.children) && parent.children.length > 0 ? parent.children[visitor] : null,
     children: [],
+    type: parent.type,
     props: null,
   };
   if (typeof element === 'object' && element) {
@@ -342,17 +339,18 @@ function multiplex(
         const child = element.props.children[i];
         const _old = (old.children as Awesome.VDom[])[i];
         const newNode: Awesome.VDom = {
+          type: element.type,
           parent: el,
           brother: Array.isArray(el.children) && i > 0 ? el.children[i - 1] : null,
           children: [],
-          props: child.props,
-          instance: _old.instance,
-          patches: _old.patches,
+          props: Array.isArray(child) ? {children: child} : child.props,
+          instance: _old ? _old.instance : undefined,
+          patches: _old ? _old.patches : undefined,
         };
-        if (_old.instance) {
-          _old.instance._node = newNode;
+        if (newNode.instance) {
+          newNode.instance._node = newNode;
         }
-        (el.children as Awesome.VDom[]).push(newNode);
+        (el.children as Awesome.VDom[])[i] = newNode;
       }
     }
     return el;
@@ -390,25 +388,25 @@ function diff(
 ) {
   if (typeof element === 'object' && element) {
     if ('props' in element) {
-      if (Object.keys(element.props).length === Object.keys(old.props).length) {
+      if ((old.props && element.props) && Object.keys(element.props).length === Object.keys(old.props).length) {
         for (const prop in element.props) {
-          if (prop !== 'children') {
-            if (Reflect.get(element.props, prop) !== Reflect.get(old.props, prop)) {
-              const newNode = multiplex(element, old, node, visitor);
-              if (Array.isArray(old.children)) {
-                for (let i = 0; i < old.children.length; ++ i) {
-                  rebuild(old.children[i], newNode.children[i], i);
-                }
+          if (Reflect.get(element.props, prop) !== Reflect.get(old.props, prop)) {
+            const newNode = multiplex(element, old, node, visitor);
+            node.children[visitor] = newNode;
+            if (Array.isArray(old.children)) {
+              for (let i = 0; i < old.children.length; ++ i) {
+                rebuild(old.children[i], newNode, i);
               }
-              break;
             }
+            break;
           }
         }
       } else {
         const newNode = multiplex(element, old, node, visitor);
+        node.children[visitor] = newNode;
         if (Array.isArray(old.children)) {
           for (let i = 0; i < old.children.length; ++ i) {
-            rebuild(old.children[i], newNode.children[i], i);
+            rebuild(old.children[i], newNode, i);
           }
         }
       }
@@ -439,7 +437,8 @@ function rebuild(
     } else {
       Object.assign(node.instance.state, nextState);
       const result = node.instance.render();
-      diff(result, workingNode, (node.children as Awesome.VDom[])[0], visitor);
+      debugger;
+      diff(result, workingNode, (node.children as Awesome.VDom[])[0], 0);
     }
   } else if (typeof node.type === 'function') {
     let p = node.stateStart;
@@ -453,10 +452,35 @@ function rebuild(
       p = p.next;
     }
     if (isUpdate) {
-      diff(node.type(node.props), workingNode, node, visitor);
+      diff(node.type(node.props), workingNode.children[visitor], node.children[0], 0);
+    } else {
+      (workingNode.children as Awesome.VDom[])[visitor] = node;
+      if (Array.isArray(node.children)) {
+        for (let i = 0; i < node.children.length; ++ i) {
+          const child = node.children[i];
+          rebuild(child, node, i);
+        }
+      }
     }
   } else {
-
+    (workingNode.children as Awesome.VDom[])[visitor] = node;
+    if (Array.isArray(node.children)) {
+      for (let i = 0; i < node.children.length; ++ i) {
+        const child = node.children[i];
+        if (Array.isArray(child)) {
+          const el: Awesome.VDom = {
+            brother: i > 0 ? node.children[i - 1] : null,
+            parent: node,
+            children: child,
+            props: {children: child},
+          };
+          node.children[i] = el;
+          rebuild(el, node, i);
+        } else {
+          rebuild(child, node, i);
+        }
+      }
+    }
   }
 }
 
@@ -466,6 +490,5 @@ export default {
   dispatchState,
   createRoot,
   dispatchRoot,
-  dispatchJSX,
   dispatchEffect,
 };

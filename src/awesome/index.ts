@@ -75,6 +75,7 @@ function useState<T>(initial: T | (() => T)): [T, (val: T) => void] {
     } else {
       state.value = initial;
     }
+    state.future = state.value;
   }
 
   const set = (function(_: Awesome.ListNode<T>) {
