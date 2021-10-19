@@ -1,6 +1,7 @@
 import * as Awesome from '@/types';
 import {AwesomeComponent} from '@/component';
 import {Fragment} from '@/const';
+import {render} from 'react-dom';
 
 let _root: Awesome.VDom;
 
@@ -334,23 +335,25 @@ function multiplex(
   if (typeof element === 'object' && element) {
     if ('props' in element) {
       el.props = element.props;
-      for (let i = 0; i < element.props.children.length; ++ i) {
-        const child = element.props.children[i];
-        const _old = (old.children as Awesome.VDom[])[i];
-        const newNode: Awesome.VDom = {
-          type: Array.isArray(child) || !child ? Fragment : child.type,
-          parent: el,
-          brother: Array.isArray(el.children) && i > 0 ? el.children[i - 1] : null,
-          children: Array.isArray(child) ? child : (child.props ? child.props.children : []),
-          props: (Array.isArray(child) ? {children: child} : child.props) || null,
-          instance: _old ? _old.instance : undefined,
-          patches: _old ? _old.patches : undefined,
-          dom: _old ? _old.dom : undefined,
-        };
-        if (newNode.instance) {
-          newNode.instance._node = newNode;
+      if (element.props && Array.isArray(element.props.children)) {
+        for (let i = 0; i < element.props.children.length; ++ i) {
+          const child = element.props.children[i];
+          const _old = (old.children as Awesome.VDom[])[i];
+          const newNode: Awesome.VDom = {
+            type: Array.isArray(child) || !child ? Fragment : child.type,
+            parent: el,
+            brother: Array.isArray(el.children) && i > 0 ? el.children[i - 1] : null,
+            children: Array.isArray(child) ? child : (child.props ? child.props.children : []),
+            props: (Array.isArray(child) ? {children: child} : child.props) || null,
+            instance: _old ? _old.instance : undefined,
+            patches: _old ? _old.patches : undefined,
+            dom: _old ? _old.dom : undefined,
+          };
+          if (newNode.instance) {
+            newNode.instance._node = newNode;
+          }
+          (el.children as Awesome.VDom[])[i] = newNode;
         }
-        (el.children as Awesome.VDom[])[i] = newNode;
       }
     }
 
@@ -387,18 +390,56 @@ function diff(
     old: Awesome.VDom,
     visitor: number,
 ) {
-  if (element && typeof element === 'object') {
-    if (old.type === element.type) {
-      const newNode = multiplex(element, old, node, visitor);
-      node.children[visitor] = newNode;
-      newNode.parent = node;
+  if (old && element && typeof element === 'object') {
+    if (typeof element.type !== 'function' && old.type === element.type) {
+      node.children[visitor] = old;
+      old.parent = node;
       if (Array.isArray(old.children)) {
         for (let i = 0; i < old.children.length; ++ i) {
-          rebuild(old.children[i], newNode, i);
+          // rebuild(old.children[i], newNode, i);
+          if (i < element.props.children.length) {
+            if (typeof element.props.children[i] === 'object') {
+              if (Array.isArray(element.props.children[i])) {
+                for (let j = 0; j < element.props.children[i].length; ++ j) {
+                  diff(
+                      element.props.children[i][j],
+                      node.children[visitor].children[i],
+                      old.children[i].children[j],
+                      j);
+                }
+              } else {
+                diff(element.props.children[i], node.children[visitor], old.children[i], i);
+              }
+            } else {
+              console.log(old.dom);
+              old.children[0].dom?.textContent = element.props.children[0];
+            }
+          }
+        }
+        for (let i = old.children.length; i < element.props.children.length; ++ i) {
+          diff(element.props.children[i], node.children[visitor], undefined, i);
+        }
+        for (let i = element.props.children.length; i < old.children.length; ++ i) {
+          diff(undefined, node.children[visitor], old.children[i], i);
         }
       }
+    } else if (typeof element.type === 'function') {
+      rebuild(
+          multiplex(element, old, node, visitor),
+          node,
+          visitor,
+      );
     } else {
       // TODO: 重新构建子树
+    }
+  } else {
+    if (!element && !old) {
+      return;
+    } else if (!element) {
+      // TODO: 删除子节点
+    } else if (!old) {
+      build(element, node, visitor);
+      renderElement(node.children[visitor], node, visitor);
     }
   }
 }
@@ -450,26 +491,15 @@ function rebuild(
         }
       }
     }
-  } else if (typeof node.type === 'string' || node.type === Fragment) {
-    const children = workingNode.children as Awesome.VDom[];
-    if (!children[visitor]) {
-      children[visitor] = node;
-    }
-    if (Array.isArray(children[visitor].children)) {
-      let p = children[visitor];
-      while (!p.dom || p.dom instanceof DocumentFragment) {
-        p = p.parent;
+  } else {
+    workingNode.children[visitor] = node;
+    node.parent = workingNode;
+    if (Array.isArray(node.children)) {
+      for (let i = 0; i < node.children.length; ++ i) {
+        rebuild(node.children[i], workingNode.children[visitor], i);
       }
-      for (let i = 0; i < children[visitor].children.length; ++ i) {
-        const child = children[visitor].children[i];
-        const old = node.children[i];
-        if (!old) {
-          build(child, children[visitor], i);
-          renderElement(children[visitor].children[i], p, visitor);
-        } else {
-          rebuild(old, children[visitor], i);
-        }
-      }
+    } else {
+      // TODO: 处理非数组的子元素
     }
   }
 }
