@@ -324,11 +324,12 @@ function multiplex(
     parent: Awesome.VDom,
     visitor: number) {
   const el: Awesome.VDom = {
-    parent: parent.parent,
+    parent: parent,
     brother: Array.isArray(parent.children) && parent.children.length > 0 ? parent.children[visitor] : null,
     children: [],
-    type: parent.type,
-    props: null,
+    type: old.type,
+    props: element.props,
+    dom: old.dom,
   };
   if (typeof element === 'object' && element) {
     if ('props' in element) {
@@ -344,6 +345,7 @@ function multiplex(
           props: (Array.isArray(child) ? {children: child} : child.props) || null,
           instance: _old ? _old.instance : undefined,
           patches: _old ? _old.patches : undefined,
+          dom: _old ? _old.dom : undefined,
         };
         if (newNode.instance) {
           newNode.instance._node = newNode;
@@ -351,6 +353,7 @@ function multiplex(
         (el.children as Awesome.VDom[])[i] = newNode;
       }
     }
+
     return el;
   } else {
     const el: Awesome.VDom = {
@@ -379,44 +382,23 @@ function multiplex(
  * @param {number} visitor 访问下标
  */
 function diff(
-    element: Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element> | Awesome.AwesomeElement | Awesome.Node,
+    element: Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element> | Awesome.AwesomeElement | Awesome.Node | Awesome.VDom,
     node: Awesome.VDom,
     old: Awesome.VDom,
     visitor: number,
 ) {
-  if (typeof element === 'object' && element) {
-    if ('props' in element) {
-      if ((old.props && element.props) && Object.keys(element.props).length === Object.keys(old.props).length) {
-        for (const prop in element.props) {
-          if (Reflect.get(element.props, prop) !== Reflect.get(old.props, prop)) {
-            const newNode = multiplex(element, old, node, visitor);
-            node.children[visitor] = newNode;
-            newNode.parent = node;
-            if (Array.isArray(old.children)) {
-              for (let i = 0; i < old.children.length; ++ i) {
-                rebuild(old.children[i], newNode, i);
-              }
-            }
-            break;
-          }
-        }
-      } else {
-        const newNode = multiplex(element, old, node, visitor);
-        node.children[visitor] = newNode;
-        newNode.parent = node;
-        if (Array.isArray(old.children)) {
-          for (let i = 0; i < old.children.length; ++ i) {
-            rebuild(old.children[i], newNode, i);
-          }
+  if (element && typeof element === 'object') {
+    if (old.type === element.type) {
+      const newNode = multiplex(element, old, node, visitor);
+      node.children[visitor] = newNode;
+      newNode.parent = node;
+      if (Array.isArray(old.children)) {
+        for (let i = 0; i < old.children.length; ++ i) {
+          rebuild(old.children[i], newNode, i);
         }
       }
-    }
-  } else {
-    if (node.props.children[0] !== element) {
-      if (node.dom) {
-        node.dom.innerText = String(element || '');
-      }
-      node.children = element;
+    } else {
+      // TODO: 重新构建子树
     }
   }
 }
@@ -432,17 +414,17 @@ function rebuild(
       Object.assign(nextState, patch.state);
     });
     // 判断类组件是否需要更新组件树
-    if (node.patches!.length === 0 || !node.instance.shouldComponentUpdate(node.props, nextState)) {
+    if (!node.instance.shouldComponentUpdate(workingNode.children[visitor] ? workingNode.children[visitor].props : node.props, nextState)) {
       (workingNode.children as Awesome.VDom[])[visitor] = node;
       node.parent = workingNode.children;
     } else {
       Object.assign(node.instance.state, nextState);
-
+      node.props = workingNode.children[visitor] ? workingNode.children[visitor].props : node.props;
+      node.instance.props = node.props;
       // 待测试是否需要重新创建新的引用
       workingNode.children[visitor] = node;
       node.parent = workingNode;
       const result = node.instance.render();
-
       diff(result, workingNode.children[visitor], (node.children as Awesome.VDom[])[0], 0);
       node.patches = [];
     }
@@ -468,31 +450,102 @@ function rebuild(
         }
       }
     }
-  } else {
+  } else if (typeof node.type === 'string' || node.type === Fragment) {
     const children = workingNode.children as Awesome.VDom[];
     if (!children[visitor]) {
       children[visitor] = node;
     }
     if (Array.isArray(children[visitor].children)) {
+      let p = children[visitor];
+      while (!p.dom || p.dom instanceof DocumentFragment) {
+        p = p.parent;
+      }
       for (let i = 0; i < children[visitor].children.length; ++ i) {
         const child = children[visitor].children[i];
-        // if (Array.isArray(child)) {
-        //   const el: Awesome.VDom = {
-        //     brother: i > 0 ? children[visitor].children[i - 1] : null,
-        //     parent: node,
-        //     children: child,
-        //     props: {children: child},
-        //   };
-        //   node.children[i] = el;
-        //   rebuild(el, node, i);
-        // } else {
-        //   rebuild(child, node, i);
-        // }
-        if (!node.children[i]) {
+        const old = node.children[i];
+        if (!old) {
           build(child, children[visitor], i);
+          renderElement(children[visitor].children[i], p, visitor);
         } else {
-          rebuild(node.children[i], children[visitor], i);
+          rebuild(old, children[visitor], i);
         }
+      }
+    }
+  }
+}
+
+function renderElement(
+    node: Awesome.VDom,
+    parent: Awesome.VDom,
+    visitor: number = 0,
+) {
+  if (!node.type || typeof node.type === 'string' || node.type === Fragment) {
+    if (!node.type) {
+      if (node.children[visitor + 1] && node.children[visitor + 1].dom) {
+        parent.dom?.insertBefore(document.createTextNode(node.children as string), node.children[visitor + 1].dom);
+      } else {
+        parent.dom?.append(node.children as any);
+      }
+      node.dom = parent.lastChild as HTMLElement;
+    } else if (typeof node.type === 'string') {
+      const el = document.createElement(node.type);
+      for (const attribute in node.props) {
+        if (attribute === 'children' || attribute === 'ref' || attribute === 'key') {
+          continue;
+        }
+        if (attribute === 'style') {
+          Object.assign(el.style, Reflect.get(node.props, attribute));
+          continue;
+        }
+        if (/^on/.test(attribute)) {
+          const onEvent = Reflect.get(node.props, attribute);
+          if (onEvent) {
+            el.addEventListener(attribute.slice(2).toLowerCase(), onEvent);
+          }
+          continue;
+        }
+
+        if (Reflect.has(node.props, attribute)) {
+          el.setAttribute(attribute.toLocaleLowerCase(), Reflect.get(node.props, attribute));
+        }
+      }
+      node.dom = el as HTMLElement;
+
+      for (let i = 0; i < node.children.length; ++ i) {
+        const child = node.children[i];
+        renderElement(child as Awesome.VDom, node, i);
+      }
+
+      if (parent.children[visitor + 1] && parent.children[visitor + 1].dom) {
+        parent.dom?.insertBefore(el, parent.children[visitor + 1].dom);
+      } else {
+        parent.dom?.append(el);
+      }
+    } else {
+      const el = document.createDocumentFragment();
+      node.dom = el as unknown as HTMLElement;
+      for (let i = 0; i < node.children.length; ++ i) {
+        const child = node.children[i];
+        renderElement(child as Awesome.VDom, node, i);
+      }
+
+      if (parent.children[visitor + 1] && parent.children[visitor + 1].dom) {
+        parent.dom?.insertBefore(el, parent.children[visitor + 1].dom);
+      } else {
+        parent.dom?.append(el);
+      }
+    }
+  } else {
+    for (let i = 0; i < node.children.length; ++ i) {
+      const child = node.children[i];
+      renderElement(child as Awesome.VDom, parent, visitor);
+      if (!node.dom && node.children[i].dom) {
+        node.dom = node.children[i].dom;
+      }
+    }
+    if (typeof node.type === 'function') {
+      if (node.instance) {
+        node.instance.componentDidMount && node.instance.componentDidMount();
       }
     }
   }
@@ -501,6 +554,7 @@ function rebuild(
 export default {
   build,
   rebuild,
+  renderElement,
   dispatchState,
   createRoot,
   dispatchRoot,

@@ -37,7 +37,7 @@ interface VDom<P extends {children: ChildrenNode | string} = {children: Children
   instance?: AwesomeComponent
   patches?: {instance: AwesomeComponent, state?: {}, isForce?: boolean}[]
   dispatchUpdate?: () => void
-  dom?: HTMLElement | null
+  dom?: HTMLElement
   effectStart?: ListNode<any[] | null>
   effectEnd?: ListNode<any[] | null>
 }

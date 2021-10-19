@@ -2,62 +2,6 @@ import * as Awesome from '@/types';
 import AwesomeReconciler from '@/awesome-reconciler';
 import {Fragment} from '@/const';
 
-function _render(
-    node: Awesome.VDom,
-    parent: Awesome.Container,
-) {
-  if (!node.type || typeof node.type === 'string' || node.type === Fragment) {
-    if (!node.type) {
-      parent.append(node.children as string);
-      node.dom = parent.childNodes.item(parent.childNodes.length - 1) as HTMLElement;
-    } else if (typeof node.type === 'string') {
-      const el = document.createElement(node.type);
-      for (const attribute in node.props) {
-        if (attribute === 'children' || attribute === 'ref' || attribute === 'key') {
-          continue;
-        }
-        if (attribute === 'style') {
-          Object.assign(el.style, Reflect.get(node.props, attribute));
-          continue;
-        }
-        if (/^on/.test(attribute)) {
-          const onEvent = Reflect.get(node.props, attribute);
-          if (onEvent) {
-            el.addEventListener(attribute.slice(2).toLowerCase(), onEvent);
-          }
-          continue;
-        }
-
-        if (Reflect.has(node.props, attribute)) {
-          el.setAttribute(attribute.toLocaleLowerCase(), Reflect.get(node.props, attribute));
-        }
-      }
-      for (const child of node.children) {
-        _render(child as Awesome.VDom, el);
-      }
-
-      parent.append(el);
-      node.dom = el as HTMLElement;
-    } else {
-      const el = document.createDocumentFragment();
-      for (const child of node.children) {
-        _render(child as Awesome.VDom, el);
-      }
-
-      parent.append(el);
-    }
-  } else {
-    for (const child of node.children) {
-      _render(child as Awesome.VDom, parent);
-    }
-    if (typeof node.type === 'function') {
-      if (node.instance) {
-        node.instance.componentDidMount && node.instance.componentDidMount();
-      }
-    }
-  }
-}
-
 function replaceOld(tree: Awesome.VDom, handler: (dom: Awesome.VDom) => void, unmount?: () => void) {
   if (typeof tree.type === 'function' || tree.type === Fragment) {
     if (Array.isArray(tree.children)) {
@@ -264,7 +208,7 @@ function render(
     }
   };
   if (container) {
-    _render((root.children as Awesome.VDom[])[0], container);
+    AwesomeReconciler.renderElement((root.children as Awesome.VDom[])[0], root);
     console.log(root);
   }
 
