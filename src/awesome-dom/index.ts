@@ -195,8 +195,8 @@ function render(
         const cur: Awesome.VDom = {...root};
 
         cur.children = [];
+
         AwesomeReconciler.rebuild((root.children as Awesome.VDom[])[0], cur, 0);
-        console.log(cur);
         // diff(root.children[0] as Awesome.VDom, cur.children[0] as Awesome.VDom);
         root.children = cur.children;
         root.patches = [];
@@ -205,6 +205,7 @@ function render(
     } else {
       clearTimeout(isDispatching);
       isDispatching = null;
+      root.dispatchUpdate!();
     }
   };
   if (container) {

@@ -224,15 +224,16 @@ function diff(
           Object.assign(old.dom?.style, Reflect.get(element.props, prop));
           continue;
         }
-        // if (/^on/.test(prop)) {
-        //   const _oldFunc = Reflect.get(old.props, prop);
-        //   const _newFunc = Reflect.get(element.props, prop);
-        //   if (_oldFunc !== _newFunc) {
-        //     old.dom?.removeEventListener(prop.slice(2).toLowerCase(), _oldFunc);
-        //     old.dom?.addEventListener(prop.slice(2).toLowerCase(), _newFunc);
-        //   }
-        //   continue;
-        // }
+        if (/^on/.test(prop)) {
+          const _oldFunc = Reflect.get(old.props, prop);
+          const _newFunc = Reflect.get(element.props, prop);
+          if (_oldFunc !== _newFunc) {
+            const event = prop.slice(2).toLowerCase();
+            old.dom?.removeEventListener(event, _oldFunc);
+            old.dom?.addEventListener(event, _newFunc);
+          }
+          continue;
+        }
 
         if (Reflect.has(element.props, prop)) {
           old.dom?.setAttribute(prop.toLocaleLowerCase(), Reflect.get(element.props, prop));
@@ -240,6 +241,7 @@ function diff(
       }
       node.children[visitor] = old;
       old.parent = node;
+      old.props = element.props;
       if (Array.isArray(old.children)) {
         for (let i = 0; i < old.children.length; ++ i) {
           if (i < element.props.children.length) {
@@ -267,7 +269,7 @@ function diff(
                 }
               } else {
                 if (old.children[i].type === Fragment) {
-                  unmount(old);
+                  unmount(old.children[i]);
                   old.children[i].doms?.forEach((node) => {
                     node.remove();
                   });
@@ -394,10 +396,7 @@ function renderElement(
           continue;
         }
         if (/^on/.test(prop)) {
-          const onEvent = Reflect.get(node.props, prop);
-          if (onEvent) {
-            el.addEventListener(prop.slice(2).toLowerCase(), onEvent);
-          }
+          el.addEventListener(prop.slice(2).toLowerCase(), Reflect.get(node.props, prop));
           continue;
         }
 

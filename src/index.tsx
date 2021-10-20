@@ -48,7 +48,7 @@ class Cpp extends AwesomeComponent<{
   size: number
 }, {}> {
   state = {
-    size: 10,
+    size: 20,
   }
   componentDidMount() {
     console.log('==========componentDidMount-----Cpp');
@@ -66,9 +66,8 @@ class Cpp extends AwesomeComponent<{
     const {data, cb, children} = this.props;
     const {size} = this.state;
 
-    console.log(size);
     return <div style={{fontSize: `${size}px`}} onClick={() => {
-      // cb(Date.now());
+      cb(Date.now());
       this.setState({
         size: size + 1,
       });
@@ -122,5 +121,11 @@ class Bpp extends AwesomeComponent<{}, {}, {}> {
 AwesomeDOM.render(<>
   <App></App>
   <Bpp></Bpp>
+  <>
+    <>
+      123
+      <div>456</div>
+    </>
+  </>
 </>, document.getElementById('root'));
 // console.log(AwesomeDOM.build(<App style={{fontSize: '25px', color: 'red'}} data='123'>12356</App>, null, 0));
