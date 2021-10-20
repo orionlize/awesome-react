@@ -9,7 +9,6 @@ export class AwesomeComponent<P = {}, S = {}, SS = {}> implements React.Componen
   state: S = {} as S
 
   _node?: Awesome.VDom
-  _isDispatching: boolean = false
   _updated: boolean = false
 
   setState(_state: any) {

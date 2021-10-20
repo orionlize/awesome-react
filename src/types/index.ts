@@ -40,6 +40,8 @@ interface VDom<P extends {children: ChildrenNode | string} = {children: Children
   dom?: HTMLElement
   effectStart?: ListNode<any[] | null>
   effectEnd?: ListNode<any[] | null>
+  visitor: number
+  doms?: HTMLElement[]
 }
 
 interface ListNode<T> {

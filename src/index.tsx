@@ -44,7 +44,12 @@ function Dpp(props: any) {
 class Cpp extends AwesomeComponent<{
   data: number
   cb: (update: any) => void
-}, {}, {}> {
+}, {
+  size: number
+}, {}> {
+  state = {
+    size: 10,
+  }
   componentDidMount() {
     console.log('==========componentDidMount-----Cpp');
   }
@@ -58,11 +63,16 @@ class Cpp extends AwesomeComponent<{
   }
 
   render() {
-    const {data, cb} = this.props;
+    const {data, cb, children} = this.props;
+    const {size} = this.state;
 
-    return <div onClick={() => {
-      cb(Date.now());
-    }}>{data}</div>;
+    console.log(size);
+    return <div style={{fontSize: `${size}px`}} onClick={() => {
+      // cb(Date.now());
+      this.setState({
+        size: size + 1,
+      });
+    }}>{data}-{children}</div>;
   }
 }
 
@@ -99,7 +109,9 @@ class Bpp extends AwesomeComponent<{}, {}, {}> {
     return <div>
       <h1 onClick={this.change2}>{data}</h1>
       {
-        show && new Array(10).fill(0).map((_, index) => <Cpp cb={this.change} data={data} />)
+        show && new Array(10).fill(0).map((_, index) => <Cpp cb={this.change} data={data}>
+          123
+        </Cpp>)
       }
       <App />
       <App></App>
