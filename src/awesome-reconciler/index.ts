@@ -1,6 +1,7 @@
 import * as Awesome from '@/types';
 import {AwesomeComponent} from '@/component';
 import {Fragment} from '@/const';
+import {firstChild} from '@/utils';
 
 let _root: Awesome.VDom;
 
@@ -169,36 +170,57 @@ function unmount(node: Awesome.VDom) {
   if (Array.isArray(node.children)) {
     for (const child of node.children) {
       unmount(child);
-      if (child.instance) {
-        child.instance.componentWillUnmount && child.instance.componentWillUnmount();
-      }
-      if (typeof child.type === 'string' && 'props' in child) {
-        for (const prop in child.props) {
-          if (/^on/.test(prop)) {
-            child.dom?.removeEventListener(prop.slice(2).toLocaleLowerCase(), Reflect.get(child.props, prop));
-          }
-        }
+    }
+  }
+  if (node.instance) {
+    node.instance.componentWillUnmount && node.instance.componentWillUnmount();
+  } else if (typeof node.type === 'function') {
+    node.stateStart = undefined;
+    node.stateEnd = undefined;
+    node.effectStart = undefined;
+    node.effectEnd = undefined;
+  } else if (typeof node.type === 'string' && 'props' in node) {
+    for (const prop in node.props) {
+      if (/^on/.test(prop)) {
+        node.dom?.removeEventListener(prop.slice(2).toLocaleLowerCase(), Reflect.get(node.props, prop));
       }
     }
+    node.dom?.remove();
   }
 }
 
 function appendNextNode(
     parent: Awesome.VDom,
     newNode: Element,
-    next?: Awesome.VDom,
+    visitor: number,
 ) {
-  if (next && next.type !== Fragment) {
-    parent.dom?.insertBefore(newNode, next.dom);
-  } else if (next && next.type === Fragment) {
-    if (next.doms && next.doms[0]) {
-      parent.dom?.insertBefore(newNode, next.doms[0]);
+  for (let i = visitor; i < parent?.children.length; ++ i) {
+    const next = parent.children[i];
+    if (!next && i < parent.children.length - 1) {
+      continue;
+    }
+    if (next && next.type !== Fragment) {
+      parent.dom?.insertBefore(newNode, next.dom);
+      return;
+    } else if (next && next.type === Fragment) {
+      if (next.doms) {
+        const nextElement = firstChild(next.doms);
+        if (nextElement) {
+          parent.dom?.insertBefore(newNode, nextElement);
+        } else {
+          parent.dom?.append(newNode);
+        }
+        return;
+      } else {
+        parent.dom?.append(newNode);
+        return;
+      }
     } else {
       parent.dom?.append(newNode);
+      return;
     }
-  } else {
-    parent.dom?.append(newNode);
   }
+  parent.dom?.append(newNode);
 }
 
 /**
@@ -255,8 +277,11 @@ function diff(
                       j);
                   if (j === element.props.children[i].length - 1) {
                     const original = node.children[visitor].children[i].doms || [];
-                    node.children[visitor].children[i].doms = original.length === element.props.children[i].length ? node.children[visitor].children[i].doms : original.concat(Array.from(node.children[visitor].children[i].dom.childNodes));
-                    appendNextNode(node.children[visitor], node.children[visitor].children[i].dom, node.children[visitor].children[i + 1]);
+                    if (original.length !== element.props.children[i].length) {
+                      original[i] = Array.from(node.children[visitor].children[i].dom.childNodes);
+                    }
+                    appendNextNode(node.children[visitor], node.children[visitor].children[i].dom, i + 1);
+                    return;
                   }
                 }
               } else {
@@ -268,13 +293,12 @@ function diff(
                   old.children[i].dom?.textContent = element.props.children[i];
                 }
               } else {
-                if (old.children[i].type === Fragment) {
+                if (old.children[i]) {
                   unmount(old.children[i]);
-                  old.children[i].doms?.forEach((node) => {
-                    node.remove();
-                  });
                   old.children[i].children = [];
-                  delete old.children[i].doms;
+                  if (old.children[i].type === Fragment) {
+                    delete old.children[i].doms;
+                  }
                 }
               }
             }
@@ -287,16 +311,26 @@ function diff(
           diff(undefined, node.children[visitor], old.children[i], i);
         }
       } else {
-        // TODO: children 不是数组
+        console.log(element);
       }
     } else if (element.type !== old.type) {
+      build(element, node, visitor);
+      renderElement(node.children[visitor], node, visitor);
 
+      // if (node.dom instanceof DocumentFragment) {
+      //   let parent = node.parent;
+      //   while (parent?.type === Fragment) {
+      //     parent = parent.parent;
+      //   }
+      //   parent.dom?.append(node.dom);
+      // }
     } else if (typeof element.type === 'function') {
       old.props = element.props;
       rebuild(
           old,
           node,
           visitor,
+          !(element.type.prototype instanceof AwesomeComponent),
       );
       if (old.instance && old.instance._updated) {
         old.instance.componentDidUpdate && old.instance.componentDidUpdate();
@@ -307,10 +341,21 @@ function diff(
     if (!element && !old) {
       return;
     } else if (!element) {
-      // TODO: 删除子节点
+
     } else if (!old) {
       build(element, node, visitor);
       renderElement(node.children[visitor], node, visitor);
+
+      if (node.dom instanceof DocumentFragment) {
+        let parent = node.parent;
+        let _visitor = visitor;
+        while (parent?.type === Fragment) {
+          parent.doms[_visitor] = parent.children[_visitor].doms;
+          parent = parent.parent;
+          _visitor = parent?.visitor;
+        }
+        parent.dom?.append(node.dom);
+      }
     }
   }
 }
@@ -319,8 +364,9 @@ function rebuild(
     node: Awesome.VDom,
     workingNode: Awesome.VDom,
     visitor: number,
+    isForce: boolean = false,
 ) {
-  if (node.instance instanceof AwesomeComponent) {
+  if (node.instance) {
     const nextState = Object.create(node.instance);
     node.patches && node.patches.forEach((patch) => {
       Object.assign(nextState, patch.state);
@@ -343,17 +389,25 @@ function rebuild(
     }
   } else if (typeof node.type === 'function') {
     let p = node.stateStart;
-    let isUpdate = false;
+    let isUpdate = !p;
     while (p && p !== node.stateEnd) {
       if (p.future !== p.value) {
         isUpdate = true;
+        p.value = p.future;
         break;
       }
-      p.value = p.future;
       p = p.next;
     }
-    if (isUpdate) {
-      diff(node.type(node.props), workingNode.children[visitor], node.children[0], visitor);
+    if (isUpdate || isForce) {
+      if (node.stateStart) {
+        _state = node.stateStart!;
+      } else {
+        _state = _stateTail;
+        node.stateStart = _state;
+      }
+      const newNode = node.type(node.props);
+      node.stateEnd = _state;
+      diff(newNode, workingNode.children[visitor], node.children[0], 0);
     } else {
       (workingNode.children as Awesome.VDom[])[visitor] = node;
       if (Array.isArray(node.children)) {
@@ -383,7 +437,7 @@ function renderElement(
 ) {
   if (!node.type || typeof node.type === 'string' || node.type === Fragment) {
     if (!node.type) {
-      appendNextNode(parent, document.createTextNode(node.children as string), parent.children[visitor + 1]);
+      appendNextNode(parent, document.createTextNode(node.children as string), visitor + 1);
       node.dom = parent.dom?.lastChild as HTMLElement;
     } else if (typeof node.type === 'string') {
       const el = document.createElement(node.type);
@@ -411,7 +465,7 @@ function renderElement(
         renderElement(child as Awesome.VDom, node, i);
       }
 
-      appendNextNode(parent, el, parent.children[visitor + 1]);
+      appendNextNode(parent, el, visitor + 1);
     } else {
       const el = document.createDocumentFragment();
       node.dom = el as unknown as HTMLElement;
@@ -419,8 +473,11 @@ function renderElement(
         const child = node.children[i];
         renderElement(child as Awesome.VDom, node, i);
       }
-      node.doms = el.childNodes.length > 0 ? Array.from(el.childNodes) : undefined;
-      appendNextNode(parent, el, parent.children[visitor + 1]);
+      node.doms = node.doms || [];
+      if (el.childNodes.length > 0) {
+        node.doms[visitor] = Array.from(el.childNodes);
+      }
+      appendNextNode(parent, el, visitor + 1);
     }
   } else {
     for (let i = 0; i < node.children.length; ++ i) {

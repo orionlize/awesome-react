@@ -118,14 +118,37 @@ class Bpp extends AwesomeComponent<{}, {}, {}> {
   }
 }
 
+function Test() {
+  const [state, setState] = Awesome.useState(0);
+
+  console.log(state);
+  return <>
+    <button onClick={() => {
+      setState(state + 1);
+    }}>click</button>
+    {
+      state >= 1 && <div>1</div>
+    }
+    {
+      state >= 2 && <div>2</div>
+    }
+    {
+      state >= 3 && <div>3</div>
+    }
+  </>;
+}
+
 AwesomeDOM.render(<>
-  <App></App>
-  <Bpp></Bpp>
-  <>
+  <Test />
+  {/* <App></App>
+  <Bpp></Bpp> */}
+  {/* <>
     <>
       123
       <div>456</div>
+      <div>789</div>
     </>
-  </>
+    <div>101112</div>
+  </> */}
 </>, document.getElementById('root'));
 // console.log(AwesomeDOM.build(<App style={{fontSize: '25px', color: 'red'}} data='123'>12356</App>, null, 0));

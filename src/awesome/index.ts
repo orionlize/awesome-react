@@ -68,7 +68,6 @@ function createElement<P1 extends Awesome.HTMLAttributes<T1>, T1 extends HTMLEle
 function useState<T>(initial: T | (() => T)): [T, (val: T) => void] {
   const {state, appendState} = AwesomeReconciler.dispatchState();
 
-
   if (state.value == null) {
     if (typeof initial === 'function') {
       state.value = (initial as Function)();
@@ -85,9 +84,9 @@ function useState<T>(initial: T | (() => T)): [T, (val: T) => void] {
       const root = AwesomeReconciler.dispatchRoot();
       const cur = {...root};
       cur.children = [];
-      // AwesomeReconciler.build(AwesomeReconciler.dispatchJSX(), cur, 0);
-      // AwesomeDOM.diff(root.children[0] as Awesome.VDom, cur.children[0] as Awesome.VDom);
+      AwesomeReconciler.rebuild(root.children[0], cur, 0);
       root.children = cur.children;
+      console.log(root);
     };
   })(state);
 
