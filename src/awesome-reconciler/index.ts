@@ -317,13 +317,13 @@ function diff(
       build(element, node, visitor);
       renderElement(node.children[visitor], node, visitor);
 
-      // if (node.dom instanceof DocumentFragment) {
-      //   let parent = node.parent;
-      //   while (parent?.type === Fragment) {
-      //     parent = parent.parent;
-      //   }
-      //   parent.dom?.append(node.dom);
-      // }
+      if (node.dom instanceof DocumentFragment) {
+        let parent = node.parent;
+        while (parent?.dom instanceof DocumentFragment) {
+          parent = parent.parent;
+        }
+        parent.dom?.append(node.dom);
+      }
     } else if (typeof element.type === 'function') {
       old.props = element.props;
       rebuild(
