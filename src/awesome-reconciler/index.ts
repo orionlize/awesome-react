@@ -1,7 +1,7 @@
 import * as Awesome from '@/types';
 import {AwesomeComponent} from '@/component';
 import {Fragment} from '@/const';
-import {firstChild} from '@/utils';
+import {appendNextNode} from '@/utils';
 
 let _root: Awesome.VDom;
 
@@ -122,10 +122,10 @@ function build(
         _effect = el.effectStart;
         const functionComponent = (type as ((props: any) => Awesome.AwesomeElement<any, any> | null))(element.props);
         if (el.stateEnd == null) {
-          el.stateEnd = _stateTail;
+          el.stateEnd = _stateTail.perv;
         }
         if (el.effectEnd == null) {
-          el.effectEnd = _effectTail;
+          el.effectEnd = _effectTail.perv;
         }
 
         build(functionComponent, el, 0);
@@ -175,6 +175,17 @@ function unmount(node: Awesome.VDom) {
   if (node.instance) {
     node.instance.componentWillUnmount && node.instance.componentWillUnmount();
   } else if (typeof node.type === 'function') {
+    let p = node.effectStart;
+    while (p) {
+      if (p.value && typeof p.value[0] === 'function') {
+        p.value[0]();
+      }
+      if (p === node.effectEnd) {
+        break;
+      } else {
+        p = p.next;
+      }
+    }
     node.stateStart = undefined;
     node.stateEnd = undefined;
     node.effectStart = undefined;
@@ -187,40 +198,6 @@ function unmount(node: Awesome.VDom) {
     }
     node.dom?.remove();
   }
-}
-
-function appendNextNode(
-    parent: Awesome.VDom,
-    newNode: Element,
-    visitor: number,
-) {
-  for (let i = visitor; i < parent?.children.length; ++ i) {
-    const next = parent.children[i];
-    if (!next && i < parent.children.length - 1) {
-      continue;
-    }
-    if (next && next.type !== Fragment) {
-      parent.dom?.insertBefore(newNode, next.dom);
-      return;
-    } else if (next && next.type === Fragment) {
-      if (next.doms) {
-        const nextElement = firstChild(next.doms);
-        if (nextElement) {
-          parent.dom?.insertBefore(newNode, nextElement);
-        } else {
-          parent.dom?.append(newNode);
-        }
-        return;
-      } else {
-        parent.dom?.append(newNode);
-        return;
-      }
-    } else {
-      parent.dom?.append(newNode);
-      return;
-    }
-  }
-  parent.dom?.append(newNode);
 }
 
 /**
@@ -276,12 +253,7 @@ function diff(
                       old.children[i].children[j],
                       j);
                   if (j === element.props.children[i].length - 1) {
-                    const original = node.children[visitor].children[i].doms || [];
-                    if (original.length !== element.props.children[i].length) {
-                      original[i] = Array.from(node.children[visitor].children[i].dom.childNodes);
-                    }
-                    appendNextNode(node.children[visitor], node.children[visitor].children[i].dom, i + 1);
-                    return;
+                    appendNextNode(node.children[visitor].children[i], node.children[visitor], i + 1);
                   }
                 }
               } else {
@@ -296,9 +268,6 @@ function diff(
                 if (old.children[i]) {
                   unmount(old.children[i]);
                   old.children[i].children = [];
-                  if (old.children[i].type === Fragment) {
-                    delete old.children[i].doms;
-                  }
                 }
               }
             }
@@ -317,13 +286,7 @@ function diff(
       build(element, node, visitor);
       renderElement(node.children[visitor], node, visitor);
 
-      if (node.dom instanceof DocumentFragment) {
-        let parent = node.parent;
-        while (parent?.dom instanceof DocumentFragment) {
-          parent = parent.parent;
-        }
-        parent.dom?.append(node.dom);
-      }
+      appendNextNode(node.children[visitor], node, visitor + 1);
     } else if (typeof element.type === 'function') {
       old.props = element.props;
       rebuild(
@@ -346,16 +309,7 @@ function diff(
       build(element, node, visitor);
       renderElement(node.children[visitor], node, visitor);
 
-      if (node.dom instanceof DocumentFragment) {
-        let parent = node.parent;
-        let _visitor = visitor;
-        while (parent?.type === Fragment) {
-          parent.doms[_visitor] = parent.children[_visitor].doms;
-          parent = parent.parent;
-          _visitor = parent?.visitor;
-        }
-        parent.dom?.append(node.dom);
-      }
+      appendNextNode(node, node.parent, node.visitor + 1);
     }
   }
 }
@@ -373,9 +327,12 @@ function rebuild(
     });
     // 判断类组件是否需要更新组件树
     node.instance._updated = node.instance.shouldComponentUpdate(workingNode.children[visitor] ? workingNode.children[visitor].props : node.props, nextState);
+    console.log(workingNode.children[visitor] ? workingNode.children[visitor].props : node.props);
     if (!node.instance._updated) {
       (workingNode.children as Awesome.VDom[])[visitor] = node;
       node.parent = workingNode.children;
+
+      diff(node.children[0], node, (node.children as Awesome.VDom[])[0], 0);
     } else {
       Object.assign(node.instance.state, nextState);
       node.props = workingNode.children[visitor] ? workingNode.children[visitor].props : node.props;
@@ -384,19 +341,22 @@ function rebuild(
       workingNode.children[visitor] = node;
       node.parent = workingNode;
       const result = node.instance.render();
-      diff(result, workingNode.children[visitor], (node.children as Awesome.VDom[])[0], 0);
+      diff(result, node, (node.children as Awesome.VDom[])[0], 0);
       node.patches = [];
     }
   } else if (typeof node.type === 'function') {
     let p = node.stateStart;
     let isUpdate = !p;
-    while (p && p !== node.stateEnd) {
+    while (p) {
       if (p.future !== p.value) {
         isUpdate = true;
         p.value = p.future;
+      }
+      if (p !== node.stateEnd) {
+        p = p.next;
+      } else {
         break;
       }
-      p = p.next;
     }
     if (isUpdate || isForce) {
       if (node.stateStart) {
@@ -405,8 +365,13 @@ function rebuild(
         _state = _stateTail;
         node.stateStart = _state;
       }
+      if (node.effectStart) {
+        _effect = node.effectStart;
+      } else {
+        _effect = _effectTail;
+        node.effectStart = _effect;
+      }
       const newNode = node.type(node.props);
-      node.stateEnd = _state;
       diff(newNode, workingNode.children[visitor], node.children[0], 0);
     } else {
       (workingNode.children as Awesome.VDom[])[visitor] = node;
@@ -422,7 +387,7 @@ function rebuild(
     node.parent = workingNode;
     if (Array.isArray(node.children)) {
       for (let i = 0; i < node.children.length; ++ i) {
-        rebuild(node.children[i], workingNode.children[visitor], i);
+        rebuild(node.children[i], node, i);
       }
     } else {
       // TODO: 处理非数组的子元素
@@ -437,8 +402,8 @@ function renderElement(
 ) {
   if (!node.type || typeof node.type === 'string' || node.type === Fragment) {
     if (!node.type) {
-      appendNextNode(parent, document.createTextNode(node.children as string), visitor + 1);
-      node.dom = parent.dom?.lastChild as HTMLElement;
+      node.dom = document.createTextNode(node.children as string);
+      parent.dom?.append(node.dom);
     } else if (typeof node.type === 'string') {
       const el = document.createElement(node.type);
       for (const prop in node.props) {
@@ -465,7 +430,7 @@ function renderElement(
         renderElement(child as Awesome.VDom, node, i);
       }
 
-      appendNextNode(parent, el, visitor + 1);
+      parent.dom?.append(el);
     } else {
       const el = document.createDocumentFragment();
       node.dom = el as unknown as HTMLElement;
@@ -473,11 +438,7 @@ function renderElement(
         const child = node.children[i];
         renderElement(child as Awesome.VDom, node, i);
       }
-      node.doms = node.doms || [];
-      if (el.childNodes.length > 0) {
-        node.doms[visitor] = Array.from(el.childNodes);
-      }
-      appendNextNode(parent, el, visitor + 1);
+      parent.dom?.append(el);
     }
   } else {
     for (let i = 0; i < node.children.length; ++ i) {

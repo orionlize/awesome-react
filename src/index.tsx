@@ -140,15 +140,15 @@ function Test() {
 
 AwesomeDOM.render(<>
   <Test />
-  {/* <App></App>
-  <Bpp></Bpp> */}
-  {/* <>
+  <App></App>
+  <Bpp></Bpp>
+  <>
     <>
       123
       <div>456</div>
       <div>789</div>
     </>
     <div>101112</div>
-  </> */}
+  </>
 </>, document.getElementById('root'));
 // console.log(AwesomeDOM.build(<App style={{fontSize: '25px', color: 'red'}} data='123'>12356</App>, null, 0));
