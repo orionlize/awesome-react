@@ -1,6 +1,5 @@
 import * as Awesome from '@/types';
 import AwesomeReconciler from '@/awesome-reconciler';
-import {Fragment} from '@/const';
 
 function render(
     element: Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element> | Awesome.AwesomeElement | Awesome.Node,
