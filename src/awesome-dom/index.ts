@@ -26,7 +26,7 @@ function render(
         // console.log(root);
 
         isDispatching = false;
-      }, -1);
+      }, 500);
     } else {
       cancelHostCallback();
       isDispatching = false;

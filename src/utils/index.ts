@@ -142,6 +142,7 @@ function animationTick(timestamp: number) {
 
 function requestHostCallback(callback: Function, maxWaiting: number) {
   scheduledHostCallback = callback;
+  timeoutTime = maxWaiting;
   if (isFLushingHostCallback || maxWaiting < 0) {
     port.postMessage(undefined);
   } else if (!isAnimationFrameScheduled) {

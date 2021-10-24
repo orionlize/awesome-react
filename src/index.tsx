@@ -175,7 +175,7 @@ function Node(props: {
 
 
 function tree(i: number) {
-  if (i < 8) {
+  if (i < 12) {
     return <Node>
       {
         new Array(Math.pow(2, 1)).fill(0).map(() => {
