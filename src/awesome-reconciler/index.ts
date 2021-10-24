@@ -13,6 +13,7 @@ function createRoot(container: Awesome.Container | null): Awesome.VDom {
     patches: [],
     props: {},
     dom: container as HTMLElement,
+    visitor: 0,
   };
   return _root;
 }
@@ -28,7 +29,6 @@ let _state: Awesome.ListNode<any> = {
 
 let _effect: Awesome.ListNode<any[] | null> = {
   value: null,
-  future: null,
 };
 
 let _stateTail = _state;
@@ -50,7 +50,6 @@ function _appendEffect(node: Awesome.ListNode<any | null>) {
   if (node.next == null) {
     node.next = {
       value: null,
-      future: null,
       perv: node,
     };
     _effectTail = node.next;
@@ -121,11 +120,19 @@ function build(
         _state = el.stateStart;
         _effect = el.effectStart;
         const functionComponent = (type as ((props: any) => Awesome.AwesomeElement<any, any> | null))(element.props);
-        if (el.stateEnd == null) {
-          el.stateEnd = _stateTail.perv;
+        if (_state !== el.stateStart) {
+          if (el.effectEnd == null) {
+            el.stateEnd = _stateTail.perv;
+          }
+        } else {
+          delete el.stateStart;
         }
-        if (el.effectEnd == null) {
-          el.effectEnd = _effectTail.perv;
+        if (_effect !== el.effectStart) {
+          if (el.effectEnd == null) {
+            el.effectEnd = _effectTail.perv;
+          }
+        } else {
+          delete el.effectStart;
         }
 
         build(functionComponent, el, 0);
@@ -135,20 +142,8 @@ function build(
         let i = 0;
         while (i < element.props.children.length) {
           const curChildren = element.props.children[i];
-          if (Array.isArray(curChildren)) {
-            const child: Awesome.VDom = {
-              type: Fragment,
-              parent: el,
-              children: [],
-              brother: el && Array.isArray(el.children) && i > 0 ? el.children[i - 1] : null,
-              props: {children: curChildren},
-              visitor: i,
-            };
-            el.children[i] = child;
-            build(curChildren, child, 0);
-          } else {
-            build(curChildren, el, i);
-          }
+          build(curChildren, el, i);
+          (parent?.children as Awesome.VDom[])[visitor] = el;
           ++ i;
         }
       }
@@ -159,10 +154,19 @@ function build(
     }
   } else if (Array.isArray(element)) {
     let i = 0;
+    const el: Awesome.VDom = {
+      parent,
+      children: [],
+      brother: parent && Array.isArray(parent.children) && visitor > 0 ? parent.children[visitor - 1] : null,
+      props: null,
+      visitor,
+      type: Fragment,
+    };
     while (i < element.length) {
-      build(element[i], parent, i);
+      build(element[i], el, i);
       ++ i;
     }
+    (parent?.children as Awesome.VDom[])[visitor] = el;
   }
 }
 
@@ -186,6 +190,33 @@ function unmount(node: Awesome.VDom) {
         p = p.next;
       }
     }
+
+    if (node.stateStart) {
+      if (node.stateStart.perv) {
+        node.stateStart.perv.next = node.stateEnd?.next;
+      }
+      delete node.stateStart.perv;
+    }
+    if (node.stateEnd) {
+      if (node.stateEnd.next) {
+        node.stateEnd.next.perv = node.stateStart?.perv;
+      }
+      delete node.stateEnd.next;
+    }
+
+    if (node.effectStart) {
+      if (node.effectStart.perv) {
+        node.effectStart.perv.next = node.effectEnd?.next;
+      }
+      delete node.effectStart.perv;
+    }
+    if (node.effectEnd) {
+      if (node.effectEnd.next) {
+        node.effectEnd.next.perv = node.effectStart?.perv;
+      }
+      delete node.effectEnd.next;
+    }
+
     node.stateStart = undefined;
     node.stateEnd = undefined;
     node.effectStart = undefined;
@@ -208,13 +239,27 @@ function unmount(node: Awesome.VDom) {
  * @param {number} visitor 访问下标
  */
 function diff(
-    element: Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element> | Awesome.AwesomeElement | Awesome.Node | Awesome.VDom,
+    element: Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element> | Awesome.AwesomeElement | Awesome.Node | Awesome.VDom | null,
     node: Awesome.VDom,
-    old: Awesome.VDom,
+    old: Awesome.VDom | null,
     visitor: number,
 ) {
+  if (Array.isArray(element)) {
+    for (let j = 0; j < element.length; ++ j) {
+      diff(
+          element[j],
+          (node.children as Awesome.VDom[])[visitor],
+          (old!.children as Awesome.VDom[])[j],
+          j);
+      if (j === element.length - 1) {
+        appendNextNode((node.children as Awesome.VDom[])[visitor], node, visitor + 1);
+      }
+    }
+
+    return;
+  }
   if (old && element && typeof element === 'object') {
-    if (typeof element.type !== 'function' && old.type === element.type) {
+    if ('type' in element && 'type' in old && typeof element.type !== 'function' && old.type === element.type) {
       for (const prop in element.props) {
         if (prop === 'children' || prop === 'ref' || prop === 'key') {
           continue;
@@ -238,56 +283,48 @@ function diff(
           old.dom?.setAttribute(prop.toLocaleLowerCase(), Reflect.get(element.props, prop));
         }
       }
-      node.children[visitor] = old;
+      (node.children as Awesome.VDom[])[visitor] = old;
       old.parent = node;
       old.props = element.props;
       if (Array.isArray(old.children)) {
         for (let i = 0; i < old.children.length; ++ i) {
           if (i < element.props.children.length) {
             if (typeof element.props.children[i] === 'object') {
-              if (Array.isArray(element.props.children[i])) {
-                for (let j = 0; j < element.props.children[i].length; ++ j) {
-                  diff(
-                      element.props.children[i][j],
-                      node.children[visitor].children[i],
-                      old.children[i].children[j],
-                      j);
-                  if (j === element.props.children[i].length - 1) {
-                    appendNextNode(node.children[visitor].children[i], node.children[visitor], i + 1);
-                  }
-                }
-              } else {
-                diff(element.props.children[i], node.children[visitor], old.children[i], i);
-              }
+              diff(element.props.children[i], (node.children as Awesome.VDom[])[visitor], old.children[i], i);
             } else {
               if (element.props.children[i]) {
                 if (old.children[i].dom?.textContent !== element.props.children[i]) {
-                  old.children[i].dom?.textContent = element.props.children[i];
+                  if (old && old.children[i] && old.children[i].dom) {
+                    (old.children as Awesome.VDom[])[i].dom!.textContent = element.props.children[i];
+                  }
                 }
               } else {
                 if (old.children[i]) {
                   unmount(old.children[i]);
                   old.children[i].children = [];
+                  old.children[i].type = Fragment;
+                  old.children[i].props = null;
                 }
               }
             }
           }
         }
-        for (let i = old.children.length; i < element.props.children.length; ++ i) {
-          diff(element.props.children[i], node.children[visitor], undefined, i);
+        const size = element.props && element.props.children ? element.props.children.length : 0;
+        for (let i = old.children.length; i < size; ++ i) {
+          diff(element.props.children[i], (node.children as Awesome.VDom[])[visitor], null, i);
         }
-        for (let i = element.props.children.length; i < old.children.length; ++ i) {
-          diff(undefined, node.children[visitor], old.children[i], i);
+        for (let i = size; i < old.children.length; ++ i) {
+          diff(null, (node.children as Awesome.VDom[])[visitor], old.children[i], i);
         }
       } else {
         console.log(element);
       }
-    } else if (element.type !== old.type) {
+    } else if ('type' in element && element.type !== old.type) {
       build(element, node, visitor);
-      renderElement(node.children[visitor], node, visitor);
+      renderElement((node.children as Awesome.VDom[])[visitor], node, visitor);
 
-      appendNextNode(node.children[visitor], node, visitor + 1);
-    } else if (typeof element.type === 'function') {
+      appendNextNode((node.children as Awesome.VDom[])[visitor], node, visitor + 1);
+    } else if ('type' in element && typeof element.type === 'function') {
       old.props = element.props;
       rebuild(
           old,
@@ -307,9 +344,9 @@ function diff(
 
     } else if (!old) {
       build(element, node, visitor);
-      renderElement(node.children[visitor], node, visitor);
+      renderElement((node.children as Awesome.VDom[])[visitor], node, visitor);
 
-      appendNextNode(node, node.parent, node.visitor + 1);
+      appendNextNode(node, node.parent!, node.visitor + 1);
     }
   }
 }
@@ -326,19 +363,18 @@ function rebuild(
       Object.assign(nextState, patch.state);
     });
     // 判断类组件是否需要更新组件树
-    node.instance._updated = node.instance.shouldComponentUpdate(workingNode.children[visitor] ? workingNode.children[visitor].props : node.props, nextState);
-    console.log(workingNode.children[visitor] ? workingNode.children[visitor].props : node.props);
+    node.instance._updated = node.instance.shouldComponentUpdate(workingNode.children[visitor] ? (workingNode.children as Awesome.VDom[])[visitor].props : node.props, nextState);
     if (!node.instance._updated) {
       (workingNode.children as Awesome.VDom[])[visitor] = node;
-      node.parent = workingNode.children;
+      node.parent = workingNode;
 
       diff(node.children[0], node, (node.children as Awesome.VDom[])[0], 0);
     } else {
       Object.assign(node.instance.state, nextState);
-      node.props = workingNode.children[visitor] ? workingNode.children[visitor].props : node.props;
+      node.props = workingNode.children[visitor] ? (workingNode.children as Awesome.VDom[])[visitor].props : node.props;
       node.instance.props = node.props;
       // 待测试是否需要重新创建新的引用
-      workingNode.children[visitor] = node;
+      (workingNode.children as Awesome.VDom[])[visitor] = node;
       node.parent = workingNode;
       const result = node.instance.render();
       diff(result, node, (node.children as Awesome.VDom[])[0], 0);
@@ -371,8 +407,8 @@ function rebuild(
         _effect = _effectTail;
         node.effectStart = _effect;
       }
-      const newNode = node.type(node.props);
-      diff(newNode, workingNode.children[visitor], node.children[0], 0);
+      const newNode = (node.type as Function)(node.props);
+      diff(newNode, (workingNode.children as Awesome.VDom[])[visitor], (node.children as Awesome.VDom[])[0], 0);
     } else {
       (workingNode.children as Awesome.VDom[])[visitor] = node;
       if (Array.isArray(node.children)) {
@@ -383,7 +419,7 @@ function rebuild(
       }
     }
   } else {
-    workingNode.children[visitor] = node;
+    (workingNode.children as Awesome.VDom[])[visitor] = node;
     node.parent = workingNode;
     if (Array.isArray(node.children)) {
       for (let i = 0; i < node.children.length; ++ i) {
@@ -402,7 +438,7 @@ function renderElement(
 ) {
   if (!node.type || typeof node.type === 'string' || node.type === Fragment) {
     if (!node.type) {
-      node.dom = document.createTextNode(node.children as string);
+      node.dom = document.createTextNode(node.children as string) as unknown as HTMLElement;
       parent.dom?.append(node.dom);
     } else if (typeof node.type === 'string') {
       const el = document.createElement(node.type);
@@ -444,13 +480,25 @@ function renderElement(
     for (let i = 0; i < node.children.length; ++ i) {
       const child = node.children[i];
       renderElement(child as Awesome.VDom, parent, visitor);
-      if (!node.dom && node.children[i].dom) {
-        node.dom = node.children[i].dom;
+      if (!node.dom && (node.children as Awesome.VDom[])[i].dom) {
+        node.dom = (node.children as Awesome.VDom[])[i].dom;
       }
     }
     if (typeof node.type === 'function') {
       if (node.instance) {
         node.instance.componentDidMount && node.instance.componentDidMount();
+      } else {
+        let p = node.effectStart;
+        while (p) {
+          if (p.value && p.value[0]) {
+            p.value[0] = p.value[0]();
+          }
+          if (p !== node.effectEnd) {
+            p = p.next;
+          } else {
+            break;
+          }
+        }
       }
     }
   }

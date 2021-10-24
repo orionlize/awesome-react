@@ -138,17 +138,77 @@ function Test() {
   </>;
 }
 
-AwesomeDOM.render(<>
-  <Test />
-  <App></App>
-  <Bpp></Bpp>
-  <>
+function Node(props: {
+  children: any[]
+}) {
+  const [size, setSize] = Awesome.useState(10);
+  const [margin, setMargin] = Awesome.useState(10);
+
+  Awesome.useEffect(() => {
+    let size = 10;
+    let margin = 10;
+    let sub = false;
+    const anim = () => {
+      if (margin > 40) {
+        sub = true;
+      } else if (margin === 10) {
+        sub = false;
+      }
+
+      if (sub) {
+        setMargin(-- margin);
+        setSize(-- size);
+      } else {
+        setMargin(++ margin);
+        setSize(++ size);
+      }
+      window.requestAnimationFrame(anim);
+    };
+
+    window.requestAnimationFrame(anim);
+  }, []);
+
+  return <div style={{width: `${size}px`, height: `${size}px`, background: 'red', margin: `${margin}px`}}>
+    {props.children}
+  </div>;
+}
+
+
+function tree(i: number) {
+  if (i < 8) {
+    return <Node>
+      {
+        new Array(Math.pow(2, 1)).fill(0).map(() => {
+          return tree(i + 1);
+        })
+      }
+    </Node>;
+  } else {
+    return null;
+  }
+}
+function Example() {
+  return <>
+    <div style={{width: 500}}>
+      <Node>
+        {tree(0)}
+      </Node>
+    </div>
+  </>;
+}
+
+AwesomeDOM.render(
     <>
-      123
-      <div>456</div>
-      <div>789</div>
-    </>
-    <div>101112</div>
-  </>
-</>, document.getElementById('root'));
+      {
+        <>
+          {
+            // new Array(2).fill(0).map(() =>
+            <Example />
+            // )
+          }
+        </>
+      }
+      {/* <App />
+      <Bpp /> */}
+    </>, document.getElementById('root'));
 // console.log(AwesomeDOM.build(<App style={{fontSize: '25px', color: 'red'}} data='123'>12356</App>, null, 0));

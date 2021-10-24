@@ -1,5 +1,6 @@
 import * as Awesome from '@/types';
 import AwesomeReconciler from '@/awesome-reconciler';
+import {cancelHostCallback, requestHostCallback} from '@/utils';
 
 function render(
     element: Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element> | Awesome.AwesomeElement | Awesome.Node,
@@ -11,11 +12,10 @@ function render(
     }
   }
   const root = AwesomeReconciler.createRoot(container);
-  AwesomeReconciler.build(element, root);
-  let isDispatching: null | number = null;
+  let isDispatching: boolean = false;
   root.dispatchUpdate = function() {
     if (!isDispatching) {
-      isDispatching = setTimeout(() => {
+      isDispatching = requestHostCallback(() => {
         const cur: Awesome.VDom = {...root};
 
         cur.children = [];
@@ -23,16 +23,17 @@ function render(
         AwesomeReconciler.rebuild((root.children as Awesome.VDom[])[0], cur, 0);
         root.children = cur.children;
         root.patches = [];
-        console.log(root);
+        // console.log(root);
 
-        isDispatching = null;
-      }, 0);
+        isDispatching = false;
+      }, -1);
     } else {
-      clearTimeout(isDispatching);
-      isDispatching = null;
+      cancelHostCallback();
+      isDispatching = false;
       root.dispatchUpdate!();
     }
   };
+  AwesomeReconciler.build(element, root);
   if (container) {
     AwesomeReconciler.renderElement((root.children as Awesome.VDom[])[0], root);
     console.log(root);

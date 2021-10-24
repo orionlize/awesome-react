@@ -1,5 +1,4 @@
 import * as Awesome from '@/types';
-import AwesomeDOM from '@/awesome-dom';
 import AwesomeReconciler from '@/awesome-reconciler';
 import {AwesomeType, Fragment} from '@/const';
 
@@ -81,12 +80,7 @@ function useState<T>(initial: T | (() => T)): [T, (val: T) => void] {
     return (val: T) => {
       if (_.value === val) return;
       _.future = val;
-      const root = AwesomeReconciler.dispatchRoot();
-      const cur = {...root};
-      cur.children = [];
-      AwesomeReconciler.rebuild(root.children[0], cur, 0);
-      root.children = cur.children;
-      console.log(root);
+      AwesomeReconciler.dispatchRoot().dispatchUpdate!();
     };
   })(state);
 
@@ -98,7 +92,7 @@ function useState<T>(initial: T | (() => T)): [T, (val: T) => void] {
 function useEffect(cb: () => (() => void) | void, dependencies: any[]) {
   const {effectHooks, appendEffect} = AwesomeReconciler.dispatchEffect();
   if (effectHooks.value == null) {
-    effectHooks.value = [cb()].concat(dependencies);
+    effectHooks.value = [cb].concat(dependencies);
   } else {
     for (let i = 1; i < effectHooks.value.length; ++ i) {
       if (effectHooks.value[i] !== dependencies[i - 1]) {
