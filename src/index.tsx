@@ -1,6 +1,6 @@
 import Awesome from './awesome/index';
 import AwesomeDOM from './awesome-dom/index';
-import {AwesomeComponent} from './component';
+import {AwesomeComponent, lazy, Suspense} from './component';
 
 function App() {
   const [n, setN] = Awesome.useState(5);
@@ -52,6 +52,7 @@ class Cpp extends AwesomeComponent<{
   }
   componentDidMount() {
     console.log('==========componentDidMount-----Cpp');
+    throw (new Error('123'));
   }
 
   componentDidUpdate() {
@@ -81,7 +82,12 @@ class Bpp extends AwesomeComponent<{}, {}, {}> {
     show: false,
   }
 
+  componentDidCatch(e: any) {
+    console.log(e);
+  }
+
   componentDidMount() {
+    console.log(this.ref.current);
     console.log('==========componentDidMount-----Bpp');
   }
 
@@ -102,10 +108,12 @@ class Bpp extends AwesomeComponent<{}, {}, {}> {
     });
   }
 
+  ref = Awesome.createRef<HTMLDivElement>();
+
   render() {
     const {data, show} = this.state;
 
-    return <div>
+    return <div ref={this.ref}>
       <h1 onClick={this.change2}>{data}</h1>
       {
         show && new Array(10).fill(0).map((_, index) => <Cpp cb={this.change} data={data}>
@@ -118,22 +126,40 @@ class Bpp extends AwesomeComponent<{}, {}, {}> {
   }
 }
 
+function FC(props: {data: number}) {
+  return <div>
+    {
+      props.data
+    }
+  </div>;
+}
+
+const PureFC = Awesome.memo<{data: number}>(FC, (props, nextProps) => {
+  return nextProps.data - props.data > 5;
+});
+
 function Test() {
   const [state, setState] = Awesome.useState(0);
+  const ref = Awesome.useRef<HTMLButtonElement>();
+  const callback = Awesome.useCallback(() => {
+    console.log(ref.current);
+    setState(state + 1);
+  }, [state]);
 
-  console.log(state);
+  const result = Awesome.useMemo(() => {
+    return state + 10;
+  }, [state]);
+
   return <>
-    <button onClick={() => {
-      setState(state + 1);
-    }}>click</button>
+    <button ref={ref} onClick={callback}>click</button>
     {
-      state >= 1 && <div>1</div>
+      state >= 1 && <PureFC data={result}></PureFC>
     }
     {
-      state >= 2 && <div>2</div>
+      state >= 2 && <PureFC data={result}></PureFC>
     }
     {
-      state >= 3 && <div>3</div>
+      state >= 3 && <PureFC data={result}></PureFC>
     }
   </>;
 }
@@ -175,7 +201,7 @@ function Node(props: {
 
 
 function tree(i: number) {
-  if (i < 12) {
+  if (i < 8) {
     return <Node>
       {
         new Array(Math.pow(2, 1)).fill(0).map(() => {
@@ -197,18 +223,24 @@ function Example() {
   </>;
 }
 
+const LazyNode = lazy(() => import('@/page/index'));
+
 AwesomeDOM.render(
     <>
-      {
+      {/* {
         <>
           {
-            // new Array(2).fill(0).map(() =>
-            <Example />
-            // )
+            new Array(2).fill(0).map(() =>
+              <Example />,
+            )
           }
         </>
-      }
+      } */}
       {/* <App />
-      <Bpp /> */}
+      <Bpp />
+      <Test /> */}
+      <Suspense fallback={<div>loading...</div>}>
+        <LazyNode />
+      </Suspense>
     </>, document.getElementById('root'));
 // console.log(AwesomeDOM.build(<App style={{fontSize: '25px', color: 'red'}} data='123'>12356</App>, null, 0));

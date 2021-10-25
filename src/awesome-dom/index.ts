@@ -1,26 +1,27 @@
-import * as Awesome from '@/types';
+import * as AwesomeTypes from '@/types';
 import AwesomeReconciler from '@/awesome-reconciler';
+import {createRoot} from '@/node';
 import {cancelHostCallback, requestHostCallback} from '@/utils';
 
 function render(
-    element: Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element> | Awesome.AwesomeElement | Awesome.Node,
-    container: Awesome.Container | null,
+    element: AwesomeTypes.DOMElement<AwesomeTypes.DOMAttributes<Element>, Element> | AwesomeTypes.AwesomeElement | AwesomeTypes.Node,
+    container: AwesomeTypes.Container | null,
     callback?: () => void) {
   if (container) {
     while (container.childNodes.length) {
       container.childNodes[0].remove();
     }
   }
-  const root = AwesomeReconciler.createRoot(container);
+  const root = createRoot(container);
   let isDispatching: boolean = false;
   root.dispatchUpdate = function() {
     if (!isDispatching) {
       isDispatching = requestHostCallback(() => {
-        const cur: Awesome.VDom = {...root};
+        const cur: AwesomeTypes.VDom = {...root};
 
         cur.children = [];
 
-        AwesomeReconciler.rebuild((root.children as Awesome.VDom[])[0], cur, 0);
+        AwesomeReconciler.rebuild((root.children as AwesomeTypes.VDom[])[0], cur, 0);
         root.children = cur.children;
         root.patches = [];
         // console.log(root);
@@ -35,7 +36,7 @@ function render(
   };
   AwesomeReconciler.build(element, root);
   if (container) {
-    AwesomeReconciler.renderElement((root.children as Awesome.VDom[])[0], root);
+    AwesomeReconciler.renderElement((root.children as AwesomeTypes.VDom[])[0], root);
     console.log(root);
   }
 

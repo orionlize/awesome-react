@@ -35,11 +35,17 @@ interface VDom<P extends {children: ChildrenNode | string} = {children: Children
   stateEnd?: ListNode<any>
   props: any
   instance?: AwesomeComponent
-  patches?: {instance: AwesomeComponent, state?: {}, isForce?: boolean}[]
+  patches?: {state?: {}, isForce?: boolean}[]
   dispatchUpdate?: () => void
   dom?: HTMLElement
   effectStart?: ListNode<any[] | null>
   effectEnd?: ListNode<any[] | null>
+  memoStart?: ListNode<any>
+  memoEnd?: ListNode<any>
+  callbackStart?: ListNode<any>
+  callbackEnd?: ListNode<any>
+  refStart?: ListNode<any>
+  refEnd?: ListNode<any>
   visitor: number
 }
 

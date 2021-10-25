@@ -7,19 +7,20 @@ export default function emit(port) {
   };
   ws.onmessage = (e) => {
     const arr = JSON.parse(e.data);
-    for (let i = 0; i < arr.length; ++ i) {
+    arr.map((js) => {
       const script = document.createElement('script');
-      let oldScript = map.get(e.data[i]);
+      let oldScript = map.get(js.key);
       if (oldScript) {
         oldScript.remove();
         oldScript = null;
-        map.delete(e.data[i]);
+        map.delete(js.key);
       }
 
-      script.src = arr[i];
+      script.src = 'https://unpkg.com/requirejs@2.3.6/require.js';
+      script.setAttribute('data-main', js.value);
       document.body.append(script);
-      map.set(e.data[i], script);
-    }
+      map.set(js.key, script);
+    });
   };
   ws.onclose = () => {
     console.log('HMR is closed');

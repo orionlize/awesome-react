@@ -1,3 +1,4 @@
+import {exec} from 'child_process';
 import paths from './paths';
 
 const express = require('express');
@@ -5,14 +6,18 @@ const expressWs = require('express-ws');
 const fs = require('fs');
 const path = require('path');
 
-export default function Hot() {
+export default function Hot(options) {
+  const port = options.port || 3000;
+
+  let files = [];
+
   const app = express();
   expressWs(app);
 
   let ws = null;
   app.ws('/hmr', function(_ws, req) {
     ws = _ws;
-    ws.send(JSON.stringify(['bundle.js']));
+    ws.send(JSON.stringify(files));
   });
 
   app.use(express.static(paths.appBuild));
@@ -24,19 +29,30 @@ export default function Hot() {
 
     const els = html.split('</body>');
     els[0] += `<script>(${
-      require(path.resolve(paths.appBuild, 'emit.js')).toString().replace(/[\r\n]/g, '')
-    })(${'3000'})</script>`;
+      require(path.resolve(paths.appHot)).toString().replace(/[\r\n]/g, '')
+    })(${port})</script>`;
     res.send(els.join('</body>'));
   });
 
-  app.listen(3000);
+  app.listen(port, 'localhost', () => {
+    exec(`open http://localhost:${port}`);
+  });
   return {
     name: 'rollup-hot-reload-plugin',
-    generateBundle(outputOptions) {
+    writeBundle(_, output) {
+      files = [];
+      for (const bundle in output) {
+        if (output[bundle].isEntry) {
+          if (Reflect.has(output, bundle)) {
+            files.push({
+              key: output[bundle].facadeModuleId,
+              value: output[bundle].fileName,
+            });
+          }
+        }
+      }
       if (ws && !ws.closed) {
-        ws.send(
-            JSON.stringify([outputOptions.file.replace(/\.\/build\//, '')]),
-        );
+        ws.send(JSON.stringify(files));
       }
     },
   };

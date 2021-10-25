@@ -4,12 +4,13 @@ import {eslint} from 'rollup-plugin-eslint';
 import resolve from 'rollup-plugin-node-resolve';
 import uglify from '@lopatnov/rollup-plugin-uglify';
 import hotreload from './hot/index';
+import clean from './clean/index';
 
 export default [{
   input: './src/index.tsx',
   output: {
-    file: './build/bundle.js',
-    format: 'iife',
+    dir: './build',
+    format: 'amd',
     sourcemap: true,
   },
   external: ['Immutable'],
@@ -23,12 +24,15 @@ export default [{
     typescript(),
     resolve(),
     // uglify(),
-    hotreload(),
+    hotreload({
+      port: 4000,
+    }),
+    clean(),
   ],
 }, {
   input: './hot/emit.js',
   output: {
-    file: './build/emit.js',
+    file: './hot/_emit.js',
     format: 'cjs',
     sourcemap: false,
     exports: 'default',

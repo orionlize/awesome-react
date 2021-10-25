@@ -1,83 +1,15 @@
-import * as Awesome from '@/types';
+import * as AwesomeTypes from '@/types';
 import {AwesomeComponent} from '@/component';
 import {Fragment} from '@/const';
-import {appendNextNode} from '@/utils';
-
-let _root: Awesome.VDom;
-
-function createRoot(container: Awesome.Container | null): Awesome.VDom {
-  _root = {
-    parent: null,
-    children: [],
-    brother: null,
-    patches: [],
-    props: {},
-    dom: container as HTMLElement,
-    visitor: 0,
-  };
-  return _root;
-}
-
-function dispatchRoot() {
-  return _root;
-}
-
-let _state: Awesome.ListNode<any> = {
-  value: null,
-  future: null,
-};
-
-let _effect: Awesome.ListNode<any[] | null> = {
-  value: null,
-};
-
-let _stateTail = _state;
-let _effectTail = _effect;
-
-function _appendState(node: Awesome.ListNode<any>) {
-  if (node.next == null) {
-    node.next = {
-      value: null,
-      future: null,
-      perv: node,
-    };
-    _stateTail = node.next;
-  }
-  _state = node.next;
-}
-
-function _appendEffect(node: Awesome.ListNode<any | null>) {
-  if (node.next == null) {
-    node.next = {
-      value: null,
-      perv: node,
-    };
-    _effectTail = node.next;
-  }
-  _effect = node.next;
-}
-
-function dispatchState() {
-  return {
-    state: _state,
-    appendState: _appendState,
-  };
-}
-
-function dispatchEffect() {
-  return {
-    effectHooks: _effect,
-    appendEffect: _appendEffect,
-  };
-}
+import {dispatchState, dispatchEffect, dispatchRef, dispatchMemo, dispatchCallback, appendNextNode} from '@/node';
 
 function build(
-    element: Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element> | Awesome.AwesomeElement | Awesome.Node,
-    parent: Awesome.VDom | null = null,
+    element: AwesomeTypes.DOMElement<AwesomeTypes.DOMAttributes<Element>, Element> | AwesomeTypes.AwesomeElement | AwesomeTypes.Node,
+    parent: AwesomeTypes.VDom | null = null,
     visitor: number = 0,
 ) {
   if (!element || typeof element !== 'object') {
-    const el: Awesome.VDom = {
+    const el: AwesomeTypes.VDom = {
       parent,
       children: [],
       brother: parent && Array.isArray(parent.children) && visitor > 0 ? parent.children[visitor - 1] : null,
@@ -86,7 +18,7 @@ function build(
       visitor,
     };
     if (parent) {
-      (parent.children as Awesome.VDom[])[visitor] = el;
+      (parent.children as AwesomeTypes.VDom[])[visitor] = el;
     }
     if (element) {
       el.children = String(element);
@@ -95,7 +27,7 @@ function build(
     }
   } else if ('type' in element) {
     const type = element.type as any;
-    const el: Awesome.VDom = {
+    const el: AwesomeTypes.VDom = {
       type,
       parent,
       children: [],
@@ -111,28 +43,68 @@ function build(
         el.instance._node = el;
         build(el.instance.render(), el, 0);
       } else {
+        const {getState, getStateTail, setState} = dispatchState();
+        const {getEffectHooks, getEffectTail, setEffectHooks} = dispatchEffect();
+        const {getMemo, getMemoTail, setMemo} = dispatchMemo();
+        const {getCallback, getCallbackTail, setCallback} = dispatchCallback();
+        const {getRef, getRefTail, setRef} = dispatchRef();
+
         if (el.stateStart == null) {
-          el.stateStart = _stateTail;
+          el.stateStart = getStateTail();
         }
         if (el.effectStart == null) {
-          el.effectStart = _effectTail;
+          el.effectStart = getEffectTail();
         }
-        _state = el.stateStart;
-        _effect = el.effectStart;
-        const functionComponent = (type as ((props: any) => Awesome.AwesomeElement<any, any> | null))(element.props);
-        if (_state !== el.stateStart) {
+        if (el.memoStart == null) {
+          el.memoStart = getMemoTail();
+        }
+        if (el.callbackStart == null) {
+          el.callbackStart = getCallbackTail();
+        }
+        if (el.refStart == null) {
+          el.refStart = getRefTail();
+        }
+
+        setState(el.stateStart);
+        setEffectHooks(el.effectStart);
+        setMemo(el.memoStart);
+        setCallback(el.callbackStart);
+        setRef(el.refStart);
+        const functionComponent = (type as ((props: any) => AwesomeTypes.AwesomeElement<any, any> | null))(element.props);
+        if (getState() !== el.stateStart) {
           if (el.effectEnd == null) {
-            el.stateEnd = _stateTail.perv;
+            el.stateEnd = getState().perv;
           }
         } else {
           delete el.stateStart;
         }
-        if (_effect !== el.effectStart) {
+        if (getEffectHooks() !== el.effectStart) {
           if (el.effectEnd == null) {
-            el.effectEnd = _effectTail.perv;
+            el.effectEnd = getEffectTail().perv;
           }
         } else {
           delete el.effectStart;
+        }
+        if (getMemo() !== el.memoStart) {
+          if (el.memoEnd == null) {
+            el.memoEnd = getMemoTail().perv;
+          }
+        } else {
+          delete el.memoStart;
+        }
+        if (getCallback() !== el.callbackStart) {
+          if (el.callbackEnd == null) {
+            el.callbackEnd = getCallbackTail().perv;
+          }
+        } else {
+          delete el.callbackStart;
+        }
+        if (getRef() !== el.refStart) {
+          if (el.refEnd == null) {
+            el.refEnd = getRefTail().perv;
+          }
+        } else {
+          delete el.refStart;
         }
 
         build(functionComponent, el, 0);
@@ -143,18 +115,18 @@ function build(
         while (i < element.props.children.length) {
           const curChildren = element.props.children[i];
           build(curChildren, el, i);
-          (parent?.children as Awesome.VDom[])[visitor] = el;
+          (parent?.children as AwesomeTypes.VDom[])[visitor] = el;
           ++ i;
         }
       }
     }
 
     if (el && parent) {
-      (parent.children as Awesome.VDom[])[visitor] = el;
+      (parent.children as AwesomeTypes.VDom[])[visitor] = el;
     }
   } else if (Array.isArray(element)) {
     let i = 0;
-    const el: Awesome.VDom = {
+    const el: AwesomeTypes.VDom = {
       parent,
       children: [],
       brother: parent && Array.isArray(parent.children) && visitor > 0 ? parent.children[visitor - 1] : null,
@@ -166,11 +138,11 @@ function build(
       build(element[i], el, i);
       ++ i;
     }
-    (parent?.children as Awesome.VDom[])[visitor] = el;
+    (parent?.children as AwesomeTypes.VDom[])[visitor] = el;
   }
 }
 
-function unmount(node: Awesome.VDom) {
+function unmount(node: AwesomeTypes.VDom) {
   if (Array.isArray(node.children)) {
     for (const child of node.children) {
       unmount(child);
@@ -217,10 +189,55 @@ function unmount(node: Awesome.VDom) {
       delete node.effectEnd.next;
     }
 
+    if (node.memoStart) {
+      if (node.memoStart.perv) {
+        node.memoStart.perv.next = node.memoEnd?.next;
+      }
+      delete node.memoStart.perv;
+    }
+    if (node.memoEnd) {
+      if (node.memoEnd.next) {
+        node.memoEnd.next.perv = node.memoStart?.perv;
+      }
+      delete node.memoEnd.next;
+    }
+
+    if (node.callbackStart) {
+      if (node.callbackStart.perv) {
+        node.callbackStart.perv.next = node.callbackEnd?.next;
+      }
+      delete node.callbackStart.perv;
+    }
+    if (node.callbackEnd) {
+      if (node.callbackEnd.next) {
+        node.callbackEnd.next.perv = node.callbackStart?.perv;
+      }
+      delete node.callbackEnd.next;
+    }
+
+    if (node.refStart) {
+      if (node.refStart.perv) {
+        node.refStart.perv.next = node.refEnd?.next;
+      }
+      delete node.refStart.perv;
+    }
+    if (node.refEnd) {
+      if (node.refEnd.next) {
+        node.refEnd.next.perv = node.refStart?.perv;
+      }
+      delete node.refEnd.next;
+    }
+
     node.stateStart = undefined;
     node.stateEnd = undefined;
     node.effectStart = undefined;
     node.effectEnd = undefined;
+    node.memoStart = undefined;
+    node.memoEnd = undefined;
+    node.callbackStart = undefined;
+    node.callbackEnd = undefined;
+    node.refStart = undefined;
+    node.refEnd = undefined;
   } else if (typeof node.type === 'string' && 'props' in node) {
     for (const prop in node.props) {
       if (/^on/.test(prop)) {
@@ -233,26 +250,26 @@ function unmount(node: Awesome.VDom) {
 
 /**
  * 遍历旧的组件节点和新的组件节点 判断是否有新的节点
- * @param {Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element> | Awesome.AwesomeElement | Awesome.Node} element 新的组件节点
- * @param {Awesome.VDom} node 新组建父节点
- * @param {Awesome.VDom} old 旧的组建节点
+ * @param {AwesomeTypes.DOMElement<AwesomeTypes.DOMAttributes<Element>, Element> | AwesomeTypes.AwesomeElement | AwesomeTypes.Node} element 新的组件节点
+ * @param {AwesomeTypes.VDom} node 新组建父节点
+ * @param {AwesomeTypes.VDom} old 旧的组建节点
  * @param {number} visitor 访问下标
  */
 function diff(
-    element: Awesome.DOMElement<Awesome.DOMAttributes<Element>, Element> | Awesome.AwesomeElement | Awesome.Node | Awesome.VDom | null,
-    node: Awesome.VDom,
-    old: Awesome.VDom | null,
+    element: AwesomeTypes.DOMElement<AwesomeTypes.DOMAttributes<Element>, Element> | AwesomeTypes.AwesomeElement | AwesomeTypes.Node | AwesomeTypes.VDom | null,
+    node: AwesomeTypes.VDom,
+    old: AwesomeTypes.VDom | null,
     visitor: number,
 ) {
   if (Array.isArray(element)) {
     for (let j = 0; j < element.length; ++ j) {
       diff(
           element[j],
-          (node.children as Awesome.VDom[])[visitor],
-          (old!.children as Awesome.VDom[])[j],
+          (node.children as AwesomeTypes.VDom[])[visitor],
+          (old!.children as AwesomeTypes.VDom[])[j],
           j);
       if (j === element.length - 1) {
-        appendNextNode((node.children as Awesome.VDom[])[visitor], node, visitor + 1);
+        appendNextNode((node.children as AwesomeTypes.VDom[])[visitor], node, visitor + 1);
       }
     }
 
@@ -283,19 +300,19 @@ function diff(
           old.dom?.setAttribute(prop.toLocaleLowerCase(), Reflect.get(element.props, prop));
         }
       }
-      (node.children as Awesome.VDom[])[visitor] = old;
+      (node.children as AwesomeTypes.VDom[])[visitor] = old;
       old.parent = node;
       old.props = element.props;
       if (Array.isArray(old.children)) {
         for (let i = 0; i < old.children.length; ++ i) {
           if (i < element.props.children.length) {
             if (typeof element.props.children[i] === 'object') {
-              diff(element.props.children[i], (node.children as Awesome.VDom[])[visitor], old.children[i], i);
+              diff(element.props.children[i], (node.children as AwesomeTypes.VDom[])[visitor], old.children[i], i);
             } else {
               if (element.props.children[i]) {
                 if (old.children[i].dom?.textContent !== element.props.children[i]) {
                   if (old && old.children[i] && old.children[i].dom) {
-                    (old.children as Awesome.VDom[])[i].dom!.textContent = element.props.children[i];
+                    (old.children as AwesomeTypes.VDom[])[i].dom!.textContent = element.props.children[i];
                   }
                 }
               } else {
@@ -311,20 +328,32 @@ function diff(
         }
         const size = element.props && element.props.children ? element.props.children.length : 0;
         for (let i = old.children.length; i < size; ++ i) {
-          diff(element.props.children[i], (node.children as Awesome.VDom[])[visitor], null, i);
+          diff(element.props.children[i], (node.children as AwesomeTypes.VDom[])[visitor], null, i);
         }
         for (let i = size; i < old.children.length; ++ i) {
-          diff(null, (node.children as Awesome.VDom[])[visitor], old.children[i], i);
+          diff(null, (node.children as AwesomeTypes.VDom[])[visitor], old.children[i], i);
         }
       } else {
         console.log(element);
       }
     } else if ('type' in element && element.type !== old.type) {
       build(element, node, visitor);
-      renderElement((node.children as Awesome.VDom[])[visitor], node, visitor);
+      sateRenderElement((node.children as AwesomeTypes.VDom[])[visitor], node, visitor);
 
-      appendNextNode((node.children as Awesome.VDom[])[visitor], node, visitor + 1);
+      appendNextNode((node.children as AwesomeTypes.VDom[])[visitor], node, visitor + 1);
     } else if ('type' in element && typeof element.type === 'function') {
+      if ('compare' in (old.type as Function)) {
+        if (!(Reflect.get(old.type as Function, 'compare') as Function)(old.props, element.props)) {
+          if (Array.isArray(element.props.children)) {
+            for (let i = 0; i < element.props.children.length; ++ i) {
+              if (typeof element.props.type === 'function') {
+                rebuild((old.children as AwesomeTypes.VDom[])[i], old, i);
+              }
+            }
+          }
+          return;
+        }
+      }
       old.props = element.props;
       rebuild(
           old,
@@ -344,41 +373,58 @@ function diff(
 
     } else if (!old) {
       build(element, node, visitor);
-      renderElement((node.children as Awesome.VDom[])[visitor], node, visitor);
+      sateRenderElement((node.children as AwesomeTypes.VDom[])[visitor], node, visitor);
 
       appendNextNode(node, node.parent!, node.visitor + 1);
     }
   }
 }
 
+function updateClassNode(
+    node: AwesomeTypes.VDom,
+    workingNode: AwesomeTypes.VDom,
+    visitor: number,
+) {
+  const nextState = Object.create(node.instance!);
+  node.patches && node.patches.forEach((patch) => {
+    Object.assign(nextState, patch.state);
+  });
+  // 判断类组件是否需要更新组件树
+  node.instance!._updated = node.instance!.shouldComponentUpdate(workingNode.children[visitor] ? (workingNode.children as AwesomeTypes.VDom[])[visitor].props : node.props, nextState);
+
+  if (!node.instance!._updated) {
+    (workingNode.children as AwesomeTypes.VDom[])[visitor] = node;
+    node.parent = workingNode;
+
+    diff(node.children[0], node, (node.children as AwesomeTypes.VDom[])[0], 0);
+  } else {
+    Object.assign(node.instance!.state, nextState);
+    node.props = workingNode.children[visitor] ? (workingNode.children as AwesomeTypes.VDom[])[visitor].props : node.props;
+    node.instance!.props = node.props;
+    // 待测试是否需要重新创建新的引用
+    (workingNode.children as AwesomeTypes.VDom[])[visitor] = node;
+    node.parent = workingNode;
+    const result = node.instance!.render();
+    diff(result, node, (node.children as AwesomeTypes.VDom[])[0], 0);
+    node.patches = [];
+  }
+}
+
 function rebuild(
-    node: Awesome.VDom,
-    workingNode: Awesome.VDom,
+    node: AwesomeTypes.VDom,
+    workingNode: AwesomeTypes.VDom,
     visitor: number,
     isForce: boolean = false,
 ) {
   if (node.instance) {
-    const nextState = Object.create(node.instance);
-    node.patches && node.patches.forEach((patch) => {
-      Object.assign(nextState, patch.state);
-    });
-    // 判断类组件是否需要更新组件树
-    node.instance._updated = node.instance.shouldComponentUpdate(workingNode.children[visitor] ? (workingNode.children as Awesome.VDom[])[visitor].props : node.props, nextState);
-    if (!node.instance._updated) {
-      (workingNode.children as Awesome.VDom[])[visitor] = node;
-      node.parent = workingNode;
-
-      diff(node.children[0], node, (node.children as Awesome.VDom[])[0], 0);
+    if (node.instance.componentDidCatch) {
+      try {
+        updateClassNode(node, workingNode, visitor);
+      } catch (error: any) {
+        node.instance.componentDidCatch(error);
+      }
     } else {
-      Object.assign(node.instance.state, nextState);
-      node.props = workingNode.children[visitor] ? (workingNode.children as Awesome.VDom[])[visitor].props : node.props;
-      node.instance.props = node.props;
-      // 待测试是否需要重新创建新的引用
-      (workingNode.children as Awesome.VDom[])[visitor] = node;
-      node.parent = workingNode;
-      const result = node.instance.render();
-      diff(result, node, (node.children as Awesome.VDom[])[0], 0);
-      node.patches = [];
+      updateClassNode(node, workingNode, visitor);
     }
   } else if (typeof node.type === 'function') {
     let p = node.stateStart;
@@ -395,22 +441,40 @@ function rebuild(
       }
     }
     if (isUpdate || isForce) {
+      const {setState, getStateTail} = dispatchState();
       if (node.stateStart) {
-        _state = node.stateStart!;
+        setState(node.stateStart);
       } else {
-        _state = _stateTail;
-        node.stateStart = _state;
+        setState(getStateTail());
       }
+      const {setEffectHooks, getEffectTail} = dispatchEffect();
       if (node.effectStart) {
-        _effect = node.effectStart;
+        setEffectHooks(node.effectStart);
       } else {
-        _effect = _effectTail;
-        node.effectStart = _effect;
+        setEffectHooks(getEffectTail());
+      }
+      const {setMemo, getMemoTail} = dispatchMemo();
+      if (node.memoStart) {
+        setMemo(node.memoStart);
+      } else {
+        setMemo(getMemoTail());
+      }
+      const {setCallback, getCallbackTail} = dispatchCallback();
+      if (node.callbackStart) {
+        setCallback(node.callbackStart);
+      } else {
+        setCallback(getCallbackTail());
+      }
+      const {setRef, getRefTail} = dispatchRef();
+      if (node.refStart) {
+        setRef(node.refStart);
+      } else {
+        setRef(getRefTail());
       }
       const newNode = (node.type as Function)(node.props);
-      diff(newNode, (workingNode.children as Awesome.VDom[])[visitor], (node.children as Awesome.VDom[])[0], 0);
+      diff(newNode, (workingNode.children as AwesomeTypes.VDom[])[visitor], (node.children as AwesomeTypes.VDom[])[0], 0);
     } else {
-      (workingNode.children as Awesome.VDom[])[visitor] = node;
+      (workingNode.children as AwesomeTypes.VDom[])[visitor] = node;
       if (Array.isArray(node.children)) {
         for (let i = 0; i < node.children.length; ++ i) {
           const child = node.children[i];
@@ -419,7 +483,7 @@ function rebuild(
       }
     }
   } else {
-    (workingNode.children as Awesome.VDom[])[visitor] = node;
+    (workingNode.children as AwesomeTypes.VDom[])[visitor] = node;
     node.parent = workingNode;
     if (Array.isArray(node.children)) {
       for (let i = 0; i < node.children.length; ++ i) {
@@ -432,8 +496,8 @@ function rebuild(
 }
 
 function renderElement(
-    node: Awesome.VDom,
-    parent: Awesome.VDom,
+    node: AwesomeTypes.VDom,
+    parent: AwesomeTypes.VDom,
     visitor: number = 0,
 ) {
   if (!node.type || typeof node.type === 'string' || node.type === Fragment) {
@@ -463,25 +527,28 @@ function renderElement(
 
       for (let i = 0; i < node.children.length; ++ i) {
         const child = node.children[i];
-        renderElement(child as Awesome.VDom, node, i);
+        sateRenderElement(child as AwesomeTypes.VDom, node, i);
       }
 
+      if ('ref' in node.props) {
+        node.props.ref(el);
+      }
       parent.dom?.append(el);
     } else {
       const el = document.createDocumentFragment();
       node.dom = el as unknown as HTMLElement;
       for (let i = 0; i < node.children.length; ++ i) {
         const child = node.children[i];
-        renderElement(child as Awesome.VDom, node, i);
+        sateRenderElement(child as AwesomeTypes.VDom, node, i);
       }
       parent.dom?.append(el);
     }
   } else {
     for (let i = 0; i < node.children.length; ++ i) {
       const child = node.children[i];
-      renderElement(child as Awesome.VDom, parent, visitor);
-      if (!node.dom && (node.children as Awesome.VDom[])[i].dom) {
-        node.dom = (node.children as Awesome.VDom[])[i].dom;
+      sateRenderElement(child as AwesomeTypes.VDom, parent, visitor);
+      if (!node.dom && (node.children as AwesomeTypes.VDom[])[i].dom) {
+        node.dom = (node.children as AwesomeTypes.VDom[])[i].dom;
       }
     }
     if (typeof node.type === 'function') {
@@ -504,12 +571,26 @@ function renderElement(
   }
 }
 
+function sateRenderElement(
+    node: AwesomeTypes.VDom,
+    parent: AwesomeTypes.VDom,
+    visitor: number = 0,
+) {
+  if (node.instance && node.instance.componentDidCatch) {
+    try {
+      renderElement(node, parent, visitor);
+    } catch (error: any) {
+      node.instance.componentDidCatch(error);
+    }
+  } else {
+    renderElement(node, parent, visitor);
+  }
+}
+
 export default {
   build,
   rebuild,
   renderElement,
   dispatchState,
-  createRoot,
-  dispatchRoot,
   dispatchEffect,
 };
