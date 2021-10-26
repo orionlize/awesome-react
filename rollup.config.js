@@ -29,7 +29,8 @@ export default [{
     }),
     clean(),
   ],
-}, {
+},
+{
   input: './hot/emit.js',
   output: {
     file: './hot/_emit.js',
@@ -42,4 +43,5 @@ export default [{
     babel(),
     uglify(),
   ],
-}];
+},
+];

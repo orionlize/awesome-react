@@ -32,6 +32,7 @@ class AwesomeComponent<P = {}, S = {}, SS = {}> implements React.Component<P, S,
   }
 
   componentDidCatch?(error: any): void
+  getDerivedStateFromError?(): void
   shouldComponentUpdate(nextProps: P, nextState: S) {
     return !equal(createMap(this.props), createMap(nextProps)) || !equal(createMap(this.state), createMap(nextState));
     // return true;
@@ -48,9 +49,7 @@ class AwesomeComponent<P = {}, S = {}, SS = {}> implements React.Component<P, S,
 function lazy(func: () => Promise<any>) {
   return class LazyComponent extends AwesomeComponent {
     componentDidMount() {
-      func().then((res) => {
-        throw res;
-      });
+      throw func;
     }
 
     render() {
@@ -69,19 +68,29 @@ class Suspense extends AwesomeComponent<{
   }
 
   componentDidCatch(e: any) {
-    console.log(e);
-    // this.setState({
-    //   element: e,
-    // });
+    e().then((res) => {
+      this.setState({
+        element: <res.default />,
+      });
+    });
+  }
+
+  getDerivedStateFromError() {
+    this.setState({
+      element: this.props.fallback,
+    });
   }
 
   render() {
-    const {fallback} = this.props;
+    const {children} = this.props;
     const {element} = this.state;
 
     return <>
       {
-        element || fallback
+        element
+      }
+      {
+        !element && children
       }
     </>;
   }

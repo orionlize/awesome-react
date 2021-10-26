@@ -6,7 +6,12 @@ export default function emit(port) {
     console.log('HMR is running!');
   };
   ws.onmessage = (e) => {
+    const scripts = document.head.querySelectorAll('script');
+    scripts.forEach((script) => {
+      script.remove();
+    });
     const arr = JSON.parse(e.data);
+
     arr.map((js) => {
       const script = document.createElement('script');
       let oldScript = map.get(js.key);

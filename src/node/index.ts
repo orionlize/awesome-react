@@ -254,7 +254,7 @@ function appendNextNode(
     }
   }
 
-  if (parent.dom instanceof DocumentFragment && parent.parent) {
+  if ((!parent.dom || parent.dom instanceof DocumentFragment) && parent.parent) {
     appendNextNode(newNode, parent.parent, parent.visitor + 1);
   } else {
     parent.dom?.appendChild(newNode.dom!);

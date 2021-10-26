@@ -40,17 +40,22 @@ export default function Hot(options) {
   return {
     name: 'rollup-hot-reload-plugin',
     writeBundle(_, output) {
-      files = [];
+      debugger;
+      const _files = [];
       for (const bundle in output) {
         if (output[bundle].isEntry) {
           if (Reflect.has(output, bundle)) {
-            files.push({
+            _files.push({
               key: output[bundle].facadeModuleId,
               value: output[bundle].fileName,
             });
           }
+          fs.writeFileSync(paths.appBuild + `/${output[bundle].fileName}`, `require.config({
+            urlArgs: "version=${Date.now()}"
+          });` );
         }
       }
+      files = _files;
       if (ws && !ws.closed) {
         ws.send(JSON.stringify(files));
       }

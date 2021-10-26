@@ -337,6 +337,7 @@ function diff(
         console.log(element);
       }
     } else if ('type' in element && element.type !== old.type) {
+      unmount(old);
       build(element, node, visitor);
       sateRenderElement((node.children as AwesomeTypes.VDom[])[visitor], node, visitor);
 
@@ -422,6 +423,7 @@ function rebuild(
         updateClassNode(node, workingNode, visitor);
       } catch (error: any) {
         node.instance.componentDidCatch(error);
+        node.instance.getDerivedStateFromError && node.instance.getDerivedStateFromError();
       }
     } else {
       updateClassNode(node, workingNode, visitor);
@@ -581,6 +583,7 @@ function sateRenderElement(
       renderElement(node, parent, visitor);
     } catch (error: any) {
       node.instance.componentDidCatch(error);
+      node.instance.getDerivedStateFromError && node.instance.getDerivedStateFromError();
     }
   } else {
     renderElement(node, parent, visitor);

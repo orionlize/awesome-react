@@ -224,6 +224,7 @@ function Example() {
 }
 
 const LazyNode = lazy(() => import('@/page/index'));
+const LazyNode2 = lazy(() => import('@/page/index2'));
 
 AwesomeDOM.render(
     <>
