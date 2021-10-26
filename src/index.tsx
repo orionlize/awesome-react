@@ -244,4 +244,3 @@ AwesomeDOM.render(
         <LazyNode />
       </Suspense>
     </>, document.getElementById('root'));
-// console.log(AwesomeDOM.build(<App style={{fontSize: '25px', color: 'red'}} data='123'>12356</App>, null, 0));

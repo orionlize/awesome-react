@@ -10,7 +10,7 @@ export default [{
   input: './src/index.tsx',
   output: {
     dir: './build',
-    format: 'amd',
+    format: 'es',
     sourcemap: true,
   },
   external: ['Immutable'],

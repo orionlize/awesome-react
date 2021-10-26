@@ -40,7 +40,6 @@ export default function Hot(options) {
   return {
     name: 'rollup-hot-reload-plugin',
     writeBundle(_, output) {
-      debugger;
       const _files = [];
       for (const bundle in output) {
         if (output[bundle].isEntry) {
@@ -50,15 +49,16 @@ export default function Hot(options) {
               value: output[bundle].fileName,
             });
           }
-          fs.writeFileSync(paths.appBuild + `/${output[bundle].fileName}`, `require.config({
-            urlArgs: "version=${Date.now()}"
-          });` );
         }
       }
       files = _files;
       if (ws && !ws.closed) {
         ws.send(JSON.stringify(files));
       }
+    },
+    augmentChunkHash(chunkInfo) {
+      debugger;
+      return Date.now().toString();
     },
   };
 }
