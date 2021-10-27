@@ -1,7 +1,9 @@
-const Fragment = Symbol('awesome.fragment');
+const AwesomeFragment = Symbol('awesome.AwesomeFragment');
 const AwesomeType = Symbol('awesome.element');
+const AwesomeProvider = Symbol('awesome.Provider');
 
 export {
-  Fragment,
+  AwesomeFragment,
   AwesomeType,
+  AwesomeProvider,
 };

@@ -1,6 +1,7 @@
 import * as AwesomeTypes from '@/types';
 import {dispatchEffect, dispatchRoot, dispatchState, dispatchRef, dispatchMemo, dispatchCallback} from '@/node';
-import {AwesomeType, Fragment} from '@/const';
+import {AwesomeType, AwesomeFragment} from '@/const';
+import {Consumer, Provider} from '@/component';
 
 function createElement(
   type: 'input',
@@ -198,6 +199,21 @@ function useRef<T>():React.RefObject<T> {
   return ref.value;
 }
 
+function createContext<T>(value: T) {
+  const _providerClass = class ProviderInstance extends Provider<T> {};
+  const _consumerClass = class ConsumerInstance extends Consumer<T> {};
+
+  const context = {
+    Provider: _providerClass,
+    Consumer: _consumerClass,
+  };
+
+  _providerClass.defaultProps = {value};
+  _consumerClass.contextType = context;
+
+  return context;
+}
+
 export default {
   createElement,
   createRef,
@@ -207,7 +223,8 @@ export default {
   useMemo,
   useCallback,
   useRef,
-  Fragment,
+  AwesomeFragment,
+  createContext,
 };
 
 export {
@@ -219,7 +236,7 @@ export {
   useMemo,
   useCallback,
   useRef,
-  Fragment,
-  AwesomeTypes,
+  AwesomeFragment,
+  createContext,
 };
 

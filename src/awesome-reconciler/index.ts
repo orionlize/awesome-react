@@ -1,7 +1,7 @@
 import * as AwesomeTypes from '@/types';
-import {AwesomeComponent} from '@/component';
-import {Fragment} from '@/const';
-import {dispatchState, dispatchEffect, dispatchRef, dispatchMemo, dispatchCallback, appendNextNode} from '@/node';
+import {CommonComponent} from '@/component';
+import {AwesomeFragment} from '@/const';
+import {dispatchState, dispatchEffect, dispatchRef, dispatchMemo, dispatchCallback, appendNextNode, putNearestContext} from '@/node';
 
 function build(
     element: AwesomeTypes.DOMElement<AwesomeTypes.DOMAttributes<Element>, Element> | AwesomeTypes.AwesomeElement | AwesomeTypes.Node,
@@ -23,7 +23,7 @@ function build(
     if (element) {
       el.children = String(element);
     } else {
-      el.type = Fragment;
+      el.type = AwesomeFragment;
     }
   } else if ('type' in element) {
     const type = element.type as any;
@@ -37,10 +37,11 @@ function build(
       visitor,
     };
     if (typeof type === 'function') {
-      if (type.prototype instanceof AwesomeComponent) {
-        const Type = type as new(props: any) => AwesomeComponent;
+      if (type.prototype instanceof CommonComponent) {
+        const Type = type as new(props: any) => CommonComponent;
         el.instance = new Type(element.props);
         el.instance._node = el;
+        putNearestContext(el);
         build(el.instance.render(), el, 0);
       } else {
         const {getState, getStateTail, setState} = dispatchState();
@@ -132,7 +133,7 @@ function build(
       brother: parent && Array.isArray(parent.children) && visitor > 0 ? parent.children[visitor - 1] : null,
       props: null,
       visitor,
-      type: Fragment,
+      type: AwesomeFragment,
     };
     while (i < element.length) {
       build(element[i], el, i);
@@ -312,14 +313,16 @@ function diff(
               if (element.props.children[i]) {
                 if (old.children[i].dom?.textContent !== element.props.children[i]) {
                   if (old && old.children[i] && old.children[i].dom) {
-                    (old.children as AwesomeTypes.VDom[])[i].dom!.textContent = element.props.children[i];
+                    if ((old.children as AwesomeTypes.VDom[])[i].dom!.textContent !== String(element.props.children[i])) {
+                      (old.children as AwesomeTypes.VDom[])[i].dom!.textContent = element.props.children[i];
+                    }
                   }
                 }
               } else {
                 if (old.children[i]) {
                   unmount(old.children[i]);
                   old.children[i].children = [];
-                  old.children[i].type = Fragment;
+                  old.children[i].type = AwesomeFragment;
                   old.children[i].props = null;
                 }
               }
@@ -360,7 +363,7 @@ function diff(
           old,
           node,
           visitor,
-          !(element.type.prototype instanceof AwesomeComponent),
+          !(element.type.prototype instanceof CommonComponent),
       );
       if (old.instance && old.instance._updated) {
         old.instance.componentDidUpdate && old.instance.componentDidUpdate();
@@ -391,7 +394,7 @@ function updateClassNode(
     Object.assign(nextState, patch.state);
   });
   // 判断类组件是否需要更新组件树
-  node.instance!._updated = node.instance!.shouldComponentUpdate(workingNode.children[visitor] ? (workingNode.children as AwesomeTypes.VDom[])[visitor].props : node.props, nextState);
+  node.instance!._updated = putNearestContext(node) || !node.instance!.shouldComponentUpdate || node.instance!.shouldComponentUpdate(workingNode.children[visitor] ? (workingNode.children as AwesomeTypes.VDom[])[visitor].props : node.props, nextState);
 
   if (!node.instance!._updated) {
     (workingNode.children as AwesomeTypes.VDom[])[visitor] = node;
@@ -502,7 +505,7 @@ function renderElement(
     parent: AwesomeTypes.VDom,
     visitor: number = 0,
 ) {
-  if (!node.type || typeof node.type === 'string' || node.type === Fragment) {
+  if (!node.type || typeof node.type === 'string' || node.type === AwesomeFragment) {
     if (!node.type) {
       node.dom = document.createTextNode(node.children as string) as unknown as HTMLElement;
       parent.dom?.append(node.dom);
@@ -594,6 +597,4 @@ export default {
   build,
   rebuild,
   renderElement,
-  dispatchState,
-  dispatchEffect,
 };

@@ -52,7 +52,6 @@ class Cpp extends AwesomeComponent<{
   }
   componentDidMount() {
     console.log('==========componentDidMount-----Cpp');
-    throw (new Error('123'));
   }
 
   componentDidUpdate() {
@@ -76,7 +75,7 @@ class Cpp extends AwesomeComponent<{
   }
 }
 
-class Bpp extends AwesomeComponent<{}, {}, {}> {
+class Bpp extends AwesomeComponent {
   state = {
     data: Date.now(),
     show: false,
@@ -122,6 +121,9 @@ class Bpp extends AwesomeComponent<{}, {}, {}> {
       }
       <App />
       <App></App>
+      {
+        this.props.children
+      }
     </div>;
   }
 }
@@ -164,9 +166,7 @@ function Test() {
   </>;
 }
 
-function Node(props: {
-  children: any[]
-}) {
+function Node(props: {children: any}) {
   const [size, setSize] = Awesome.useState(10);
   const [margin, setMargin] = Awesome.useState(10);
 
@@ -226,6 +226,45 @@ function Example() {
 const LazyNode = lazy(() => import('@/page/index'));
 const LazyNode2 = lazy(() => import('@/page/index2'));
 
+const Context = Awesome.createContext('123');
+class Consumer extends AwesomeComponent {
+  static contextType = Context
+
+  render() {
+    return <div>{this.context}</div>;
+  }
+}
+
+class Provider extends AwesomeComponent<{}, {
+  data: number
+}> {
+  state = {
+    data: 123,
+  }
+
+  render() {
+    const {data} = this.state;
+    return <div>
+      <div onClick={() => {
+        this.setState({
+          data: data + 1,
+        });
+      }}>click!</div>
+      <Context.Provider value={String(data)}>
+        <Bpp>
+          <Consumer />
+        </Bpp>
+        <Context.Consumer>
+          {
+            (value: string) => <div>{value}</div>
+          }
+        </Context.Consumer>
+      </Context.Provider>
+
+    </div>;
+  }
+}
+
 AwesomeDOM.render(
     <>
       {/* {
@@ -238,9 +277,13 @@ AwesomeDOM.render(
         </>
       } */}
       {/* <App />
-      <Bpp />
+      <Bpp>
+        <div>123</div>
+        <div>456</div>
+      </Bpp>
       <Test /> */}
-      <Suspense fallback={<div>loading...</div>}>
+      {/* <Suspense fallback={<div>loading...</div>}>
         <LazyNode />
-      </Suspense>
+      </Suspense> */}
+      <Provider />
     </>, document.getElementById('root'));

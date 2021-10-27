@@ -26,6 +26,12 @@ type FunctionComponent<P> = React.FunctionComponent<P>
 type Attributes = React.Attributes
 type FunctionComponentElement<P> = React.FunctionComponentElement<P>
 
+type ProviderProps<T> = React.ProviderProps<T>
+type ConsumerProps<T> = {
+  children: (value: T) => ChildrenNode | ((value: T) => ChildrenNode)[]
+}
+type Component<P = {}, S = {}, SS = {}> = React.Component<P, S, SS>
+
 interface VDom<P extends {children: ChildrenNode | string} = {children: ChildrenNode | string}> {
   type?: string | JSXElementConstructor<P> | symbol
   parent: VDom<P> | null
@@ -77,4 +83,7 @@ export {
   Attributes,
   VDom,
   ListNode,
+  Component,
+  ProviderProps,
+  ConsumerProps,
 };

@@ -1,3 +1,4 @@
+import {AwesomeComponent} from '@/component';
 import * as Awesome from '@/types';
 
 let _root: Awesome.VDom;
@@ -261,6 +262,23 @@ function appendNextNode(
   }
 }
 
+function putNearestContext(node: Awesome.VDom) {
+  const Provider = (node.type as typeof AwesomeComponent).contextType?.Provider;
+  if (Provider) {
+    let parent = node.parent;
+    while (parent && !(parent.instance instanceof Provider)) {
+      parent = parent?.parent;
+    }
+    if (parent) {
+      if (node.instance?.context !== (parent.instance?.props as Awesome.ProviderProps<any>).value) {
+        node.instance!.context = (parent.instance?.props as Awesome.ProviderProps<any>).value;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 export default {
   createRoot,
   dispatchRoot,
@@ -270,6 +288,7 @@ export default {
   dispatchCallback,
   dispatchRef,
   appendNextNode,
+  putNearestContext,
 };
 
 export {
@@ -281,4 +300,5 @@ export {
   dispatchCallback,
   dispatchRef,
   appendNextNode,
+  putNearestContext,
 };

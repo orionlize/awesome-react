@@ -8,6 +8,7 @@ import clean from './clean/index';
 
 export default [{
   input: './src/index.tsx',
+  preserveEntrySignatures: 'strict',
   output: {
     dir: './build',
     format: 'es',
@@ -30,18 +31,18 @@ export default [{
     clean(),
   ],
 },
-{
-  input: './hot/emit.js',
-  output: {
-    file: './hot/_emit.js',
-    format: 'cjs',
-    sourcemap: false,
-    exports: 'default',
-  },
+  // {
+  //   input: './hot/emit.js',
+  //   output: {
+  //     file: './hot/_emit.js',
+  //     format: 'cjs',
+  //     sourcemap: false,
+  //     exports: 'default',
+  //   },
 
-  plugins: [
-    babel(),
-    uglify(),
-  ],
-},
+//   plugins: [
+//     babel(),
+//     uglify(),
+//   ],
+// },
 ];
