@@ -1,5 +1,5 @@
 import Awesome from '@/awesome';
-import * as AwesomeTypes from '@/types'
+import * as AwesomeTypes from '@/types';
 import {AwesomeComponent} from '@/component';
 
 const Context = Awesome.createContext('/');
@@ -11,6 +11,20 @@ class HashRouter extends AwesomeComponent<{}, {
     hash: '/',
   }
 
+  hashChange  = () => {
+    this.setState({
+      hash: window.location.hash
+    })
+  }
+
+  componentDidMount() {
+    window.addEventListener('hashchange', this.hashChange)
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('hashchange', this.hashChange)
+  }
+
   render() {
     const {hash} = this.state;
     return <Context.Provider value={hash}>
@@ -20,12 +34,16 @@ class HashRouter extends AwesomeComponent<{}, {
 }
 
 class Switch extends AwesomeComponent<{
-  children: awe
+  children: AwesomeTypes.ChildrenNode[]
 }> {
   static contextType = Context;
 
   render() {
-    return this.props.children ? (this.props.children as Array)
+    return this.props.children ? this.props.children.some((child) => {
+      if (child) {
+        return child
+      }
+    })
   }
 }
 
