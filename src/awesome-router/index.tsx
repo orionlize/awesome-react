@@ -6,10 +6,10 @@ import {registerEvent} from '@/utils';
 const Context = Awesome.createContext('/');
 
 class HashRouter extends AwesomeComponent<{}, {
-  hash?: string
+  hash: string
 }> {
   state = {
-    hash: undefined,
+    hash: '',
   }
 
   hashChange = () => {
@@ -36,10 +36,10 @@ class HashRouter extends AwesomeComponent<{}, {
 }
 
 class BrowserRouter extends AwesomeComponent<{}, {
-  path?: string
+  path: string
 }> {
   state = {
-    path: undefined,
+    path: '',
   }
 
   pathChange = () => {
@@ -81,7 +81,22 @@ class Switch extends AwesomeComponent<{
   static contextType = Context;
 
   render() {
-    return this.props.children;
+    return (this.props.children as AwesomeTypes.ChildrenNode[]).reduce((a: any, b: any) => {
+      if (a) {
+        return a;
+      } else {
+        if (b) {
+          const {exact, path} = b.props;
+          if (exact ? this.context === path : path.includes(this.context)) {
+            return b;
+          } else {
+            return null;
+          }
+        } else {
+          return null;
+        }
+      }
+    }, null);
   }
 }
 
@@ -106,7 +121,6 @@ class Route extends AwesomeComponent<{
   render() {
     const {path, exact, component: RouteComponent} = this.props;
     const {element} = this.state;
-
     const visible = exact ? this.context === path : path.includes(this.context);
     return <>
       {

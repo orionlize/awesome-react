@@ -233,6 +233,14 @@ class Consumer extends AwesomeComponent {
   }
 }
 
+function FuncContext() {
+  const value = Awesome.useContext(Context);
+
+  console.log(value);
+
+  return <div>{value}</div>;
+}
+
 class Provider extends AwesomeComponent<{}, {
   data: number
 }> {
@@ -249,14 +257,15 @@ class Provider extends AwesomeComponent<{}, {
         });
       }}>click!</div>
       <Context.Provider value={String(data)}>
-        <Bpp>
+        {/* <Bpp>
           <Consumer />
         </Bpp>
         <Context.Consumer>
           {
             (value: string) => <div>{value}</div>
           }
-        </Context.Consumer>
+        </Context.Consumer> */}
+        <FuncContext />
       </Context.Provider>
 
     </div>;
@@ -286,13 +295,13 @@ AwesomeDOM.render(
       {/* <Suspense fallback={<div>loading...</div>}>
         <LazyNode />
       </Suspense> */}
-      <Provider />
-      {/* <BrowserRouter>
+      {/* <Provider /> */}
+      <BrowserRouter>
         <Suspense fallback={<div>loading...</div>}>
           <Switch>
             <Route exact path='/' component={LazyNode} />
             <Route exact path='/child' component={LazyNode2} />
           </Switch>
         </Suspense>
-      </BrowserRouter> */}
+      </BrowserRouter>
     </>, document.getElementById('root'));

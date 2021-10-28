@@ -12,10 +12,6 @@ let _effect: Awesome.ListNode<any[] | null> = {
   value: null,
 };
 
-let _ref: Awesome.ListNode<any> = {
-  value: null,
-};
-
 let _memo: Awesome.ListNode<any> = {
   value: null,
 };
@@ -24,16 +20,26 @@ let _callback: Awesome.ListNode<any> = {
   value: null,
 };
 
+let _ref: Awesome.ListNode<any> = {
+  value: null,
+};
+
+let _context: Awesome.ListNode<any> = {
+  value: null,
+};
+
 // eslint-disable-next-line no-unused-vars
 let _stateTail = _state;
 // eslint-disable-next-line no-unused-vars
 let _effectTail = _effect;
 // eslint-disable-next-line no-unused-vars
-let _refTail = _ref;
-// eslint-disable-next-line no-unused-vars
 let _memoTail = _memo;
 // eslint-disable-next-line no-unused-vars
 let _callbackTail = _callback;
+// eslint-disable-next-line no-unused-vars
+let _refTail = _ref;
+// eslint-disable-next-line no-unused-vars
+let _contextTail = _context;
 
 function createRoot(container: Awesome.Container | null): Awesome.VDom {
   _root = {
@@ -108,6 +114,17 @@ function _appendRef(node: Awesome.ListNode<any>) {
   _ref = node.next;
 }
 
+function _appendContext(node: Awesome.ListNode<any>) {
+  if (node.next == null) {
+    node.next = {
+      value: null,
+      perv: node,
+    };
+    _contextTail = node.next;
+  }
+  _context = node.next;
+}
+
 function _getState() {
   return _state;
 }
@@ -126,6 +143,10 @@ function _getCallback() {
 
 function _getRef() {
   return _ref;
+}
+
+function _getContext() {
+  return _context;
 }
 
 function _getStateTail() {
@@ -148,6 +169,10 @@ function _getRefTail() {
   return _refTail;
 }
 
+function _getContextTail() {
+  return _contextTail;
+}
+
 function _setState(state: Awesome.ListNode<any>) {
   _state = state;
 }
@@ -166,6 +191,10 @@ function _setCallback(callback: Awesome.ListNode<any>) {
 
 function _setRef(ref: Awesome.ListNode<any>) {
   _ref = ref;
+}
+
+function _setContext(context: Awesome.ListNode<any>) {
+  _context = context;
 }
 
 function dispatchState() {
@@ -210,6 +239,15 @@ function dispatchRef() {
     getRefTail: _getRefTail,
     setRef: _setRef,
     appendRef: _appendRef,
+  };
+}
+
+function dispatchContext() {
+  return {
+    getContext: _getContext,
+    getContextTail: _getContextTail,
+    setContext: _setContext,
+    appendContext: _appendContext,
   };
 }
 
@@ -262,17 +300,24 @@ function appendNextNode(
   }
 }
 
-function putNearestContext(node: Awesome.VDom) {
-  const Provider = (node.type as typeof AwesomeComponent).contextType?.Provider;
+function putNearestContext(node: Awesome.VDom, contextNode?: Awesome.ListNode<any>) {
+  const Provider = (node.type as typeof AwesomeComponent).contextType?.Provider || contextNode?.value.Provider;
   if (Provider) {
     let parent = node.parent;
     while (parent && !(parent.instance instanceof Provider)) {
       parent = parent?.parent;
     }
     if (parent) {
-      if (node.instance?.context !== (parent.instance?.props as Awesome.ProviderProps<any>).value) {
-        node.instance!.context = (parent.instance?.props as Awesome.ProviderProps<any>).value;
-        return true;
+      if (node.instance) {
+        if (node.instance?.context !== (parent.instance?.props as Awesome.ProviderProps<any>).value) {
+          node.instance.context = (parent.instance?.props as Awesome.ProviderProps<any>).value;
+          return true;
+        }
+      } else {
+        if (contextNode) {
+          Reflect.set(contextNode.value, 'value', (parent.instance?.props as Awesome.ProviderProps<any>).value);
+          return true;
+        }
       }
     }
   }
@@ -287,6 +332,7 @@ export default {
   dispatchMemo,
   dispatchCallback,
   dispatchRef,
+  dispatchContext,
   appendNextNode,
   putNearestContext,
 };
@@ -299,6 +345,7 @@ export {
   dispatchMemo,
   dispatchCallback,
   dispatchRef,
+  dispatchContext,
   appendNextNode,
   putNearestContext,
 };

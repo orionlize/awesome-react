@@ -52,6 +52,8 @@ interface VDom<P extends {children: ChildrenNode | string} = {children: Children
   callbackEnd?: ListNode<any>
   refStart?: ListNode<any>
   refEnd?: ListNode<any>
+  contextStart?: ListNode<any>
+  contextEnd?: ListNode<any>
   visitor: number
 }
 

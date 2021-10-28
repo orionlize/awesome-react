@@ -1,7 +1,8 @@
 import * as AwesomeTypes from '@/types';
-import {dispatchEffect, dispatchRoot, dispatchState, dispatchRef, dispatchMemo, dispatchCallback} from '@/node';
+import {dispatchEffect, dispatchRoot, dispatchState, dispatchRef, dispatchMemo, dispatchCallback, dispatchContext} from '@/node';
 import {AwesomeType, AwesomeFragment} from '@/const';
-import {Consumer, Provider} from '@/component';
+
+import {Provider, Consumer} from '@/component';
 
 function createElement(
   type: 'input',
@@ -65,6 +66,22 @@ function createRef<T>() {
 
   return ref as unknown as React.RefObject<T>;
 }
+
+function createContext<T = any>(value: T) {
+  const _providerClass = class ProviderInstance extends Provider<T> {};
+  const _consumerClass = class ConsumerInstance extends Consumer<T> {};
+
+  const context = {
+    Provider: _providerClass,
+    Consumer: _consumerClass,
+  };
+
+  _providerClass.defaultProps = {value};
+  _consumerClass.contextType = context;
+
+  return context;
+}
+
 
 function defaultCompare<P extends {}>(props: P, nextProps: P): boolean {
   const keys = Object.keys(props);
@@ -199,44 +216,43 @@ function useRef<T>():React.RefObject<T> {
   return ref.value;
 }
 
-function createContext<T = any>(value: T) {
-  const _providerClass = class ProviderInstance extends Provider<T> {};
-  const _consumerClass = class ConsumerInstance extends Consumer<T> {};
+function useContext<T>(_context: T) {
+  const {getContext, appendContext} = dispatchContext();
+  const context = getContext();
 
-  const context = {
-    Provider,
-    Consumer,
-  };
+  if (context.value == null) {
+    context.value = _context;
+  }
 
-  _providerClass.defaultProps = {value};
-  _consumerClass.contextType = context;
-
-  return context;
+  appendContext(context);
+  return Reflect.get(context.value, 'value');
 }
 
 export default {
   createElement,
   createRef,
+  createContext,
   memo,
   useState,
   useEffect,
   useMemo,
   useCallback,
   useRef,
+  useContext,
   AwesomeFragment,
-  createContext,
 };
 
 export {
   createElement,
   createRef,
+  createContext,
   memo,
   useState,
   useEffect,
   useMemo,
   useCallback,
   useRef,
+  useContext,
   AwesomeFragment,
-  createContext,
 };
 

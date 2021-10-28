@@ -1,7 +1,7 @@
 import * as AwesomeTypes from '@/types';
 import {CommonComponent} from '@/component';
 import {AwesomeFragment} from '@/const';
-import {dispatchState, dispatchEffect, dispatchRef, dispatchMemo, dispatchCallback, appendNextNode, putNearestContext} from '@/node';
+import {dispatchState, dispatchEffect, dispatchRef, dispatchMemo, dispatchCallback, appendNextNode, putNearestContext, dispatchContext} from '@/node';
 
 function build(
     element: AwesomeTypes.DOMElement<AwesomeTypes.DOMAttributes<Element>, Element> | AwesomeTypes.AwesomeElement | AwesomeTypes.Node,
@@ -49,6 +49,7 @@ function build(
         const {getMemo, getMemoTail, setMemo} = dispatchMemo();
         const {getCallback, getCallbackTail, setCallback} = dispatchCallback();
         const {getRef, getRefTail, setRef} = dispatchRef();
+        const {getContext, getContextTail, setContext} = dispatchContext();
 
         if (el.stateStart == null) {
           el.stateStart = getStateTail();
@@ -65,13 +66,18 @@ function build(
         if (el.refStart == null) {
           el.refStart = getRefTail();
         }
+        if (el.contextStart == null) {
+          el.contextStart = getContextTail();
+        }
 
         setState(el.stateStart);
         setEffectHooks(el.effectStart);
         setMemo(el.memoStart);
         setCallback(el.callbackStart);
         setRef(el.refStart);
-        const functionComponent = (type as ((props: any) => AwesomeTypes.AwesomeElement<any, any> | null))(element.props);
+        setContext(el.contextStart);
+
+        let functionComponent = (type as ((props: any) => AwesomeTypes.AwesomeElement<any, any> | null))(element.props);
         if (getState() !== el.stateStart) {
           if (el.effectEnd == null) {
             el.stateEnd = getState().perv;
@@ -106,6 +112,28 @@ function build(
           }
         } else {
           delete el.refStart;
+        }
+        if (getContext() !== el.contextStart) {
+          if (el.contextEnd == null) {
+            el.contextEnd = getContextTail().perv;
+          }
+        } else {
+          delete el.contextStart;
+        }
+
+        let p = el.contextStart;
+        if (p?.value) {
+          while (p) {
+            if (p.value) {
+              putNearestContext(el, p);
+            }
+            if (p !== el.contextEnd) {
+              p = p.next!;
+            } else {
+              break;
+            }
+          }
+          functionComponent = (type as ((props: any) => AwesomeTypes.AwesomeElement<any, any> | null))(element.props);
         }
 
         build(functionComponent, el, 0);
@@ -229,6 +257,20 @@ function unmount(node: AwesomeTypes.VDom) {
       delete node.refEnd.next;
     }
 
+    if (node.contextStart) {
+      if (node.contextStart.perv) {
+        node.contextStart.perv.next = node.contextEnd?.next;
+      }
+      delete node.contextStart.perv;
+    }
+    if (node.contextEnd) {
+      if (node.contextEnd.next) {
+        node.contextEnd.next.perv = node.contextStart?.perv;
+      }
+      delete node.contextEnd.next;
+    }
+
+
     node.stateStart = undefined;
     node.stateEnd = undefined;
     node.effectStart = undefined;
@@ -239,6 +281,8 @@ function unmount(node: AwesomeTypes.VDom) {
     node.callbackEnd = undefined;
     node.refStart = undefined;
     node.refEnd = undefined;
+    node.contextStart = undefined;
+    node.contextEnd = undefined;
   } else if (typeof node.type === 'string' && 'props' in node) {
     for (const prop in node.props) {
       if (/^on/.test(prop)) {
@@ -262,6 +306,8 @@ function diff(
     old: AwesomeTypes.VDom | null,
     visitor: number,
 ) {
+  debugger;
+
   if (Array.isArray(element)) {
     for (let j = 0; j < element.length; ++ j) {
       diff(
@@ -446,6 +492,17 @@ function rebuild(
         break;
       }
     }
+    p = node.contextStart;
+    while (p) {
+      if (p.value) {
+        putNearestContext(node, p);
+      }
+      if (p !== node.contextEnd) {
+        p = p.next;
+      } else {
+        break;
+      }
+    }
     if (isUpdate || isForce) {
       const {setState, getStateTail} = dispatchState();
       if (node.stateStart) {
@@ -476,6 +533,12 @@ function rebuild(
         setRef(node.refStart);
       } else {
         setRef(getRefTail());
+      }
+      const {setContext, getContextTail} = dispatchContext();
+      if (node.contextStart) {
+        setContext(node.contextStart);
+      } else {
+        setContext(getContextTail());
       }
       const newNode = (node.type as Function)(node.props);
       diff(newNode, (workingNode.children as AwesomeTypes.VDom[])[visitor], (node.children as AwesomeTypes.VDom[])[0], 0);
