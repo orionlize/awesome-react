@@ -36,8 +36,8 @@ function render(
   };
   AwesomeReconciler.build(element, root);
   if (container) {
-    AwesomeReconciler.renderElement((root.children as AwesomeTypes.VDom[])[0], root);
-    console.log(root);
+    AwesomeReconciler.renderElement((root.children as AwesomeTypes.VDom[])[0], root.dom!);
+    // console.log(root);
   }
 
   callback && callback();

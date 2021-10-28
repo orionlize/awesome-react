@@ -199,13 +199,13 @@ function useRef<T>():React.RefObject<T> {
   return ref.value;
 }
 
-function createContext<T>(value: T) {
+function createContext<T = any>(value: T) {
   const _providerClass = class ProviderInstance extends Provider<T> {};
   const _consumerClass = class ConsumerInstance extends Consumer<T> {};
 
   const context = {
-    Provider: _providerClass,
-    Consumer: _consumerClass,
+    Provider,
+    Consumer,
   };
 
   _providerClass.defaultProps = {value};

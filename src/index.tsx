@@ -1,6 +1,7 @@
 import Awesome from './awesome/index';
 import AwesomeDOM from './awesome-dom/index';
 import {AwesomeComponent, lazy, Suspense} from './component';
+import {HashRouter, BrowserRouter, Route, Switch} from './awesome-router';
 
 function App() {
   const [n, setN] = Awesome.useState(5);
@@ -223,9 +224,6 @@ function Example() {
   </>;
 }
 
-const LazyNode = lazy(() => import('@/page/index'));
-const LazyNode2 = lazy(() => import('@/page/index2'));
-
 const Context = Awesome.createContext('123');
 class Consumer extends AwesomeComponent {
   static contextType = Context
@@ -265,6 +263,9 @@ class Provider extends AwesomeComponent<{}, {
   }
 }
 
+const LazyNode = lazy(() => import('@/page/index'));
+const LazyNode2 = lazy(() => import('@/page/index2'));
+
 AwesomeDOM.render(
     <>
       {/* {
@@ -286,4 +287,12 @@ AwesomeDOM.render(
         <LazyNode />
       </Suspense> */}
       <Provider />
+      {/* <BrowserRouter>
+        <Suspense fallback={<div>loading...</div>}>
+          <Switch>
+            <Route exact path='/' component={LazyNode} />
+            <Route exact path='/child' component={LazyNode2} />
+          </Switch>
+        </Suspense>
+      </BrowserRouter> */}
     </>, document.getElementById('root'));

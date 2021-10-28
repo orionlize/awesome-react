@@ -270,7 +270,7 @@ function diff(
           (old!.children as AwesomeTypes.VDom[])[j],
           j);
       if (j === element.length - 1) {
-        appendNextNode((node.children as AwesomeTypes.VDom[])[visitor], node, visitor + 1);
+        appendNextNode((node.children as AwesomeTypes.VDom[])[visitor].dom!, node, visitor + 1);
       }
     }
 
@@ -342,9 +342,10 @@ function diff(
     } else if ('type' in element && element.type !== old.type) {
       unmount(old);
       build(element, node, visitor);
-      sateRenderElement((node.children as AwesomeTypes.VDom[])[visitor], node, visitor);
+      const doc = document.createDocumentFragment();
+      sateRenderElement((node.children as AwesomeTypes.VDom[])[visitor], doc, 0);
 
-      appendNextNode((node.children as AwesomeTypes.VDom[])[visitor], node, visitor + 1);
+      appendNextNode(doc, node, visitor + 1);
     } else if ('type' in element && typeof element.type === 'function') {
       if ('compare' in (old.type as Function)) {
         if (!(Reflect.get(old.type as Function, 'compare') as Function)(old.props, element.props)) {
@@ -377,9 +378,9 @@ function diff(
 
     } else if (!old) {
       build(element, node, visitor);
-      sateRenderElement((node.children as AwesomeTypes.VDom[])[visitor], node, visitor);
+      sateRenderElement((node.children as AwesomeTypes.VDom[])[visitor], node.dom!, visitor);
 
-      appendNextNode(node, node.parent!, node.visitor + 1);
+      appendNextNode(node.dom!, node.parent!, node.visitor + 1);
     }
   }
 }
@@ -502,13 +503,13 @@ function rebuild(
 
 function renderElement(
     node: AwesomeTypes.VDom,
-    parent: AwesomeTypes.VDom,
+    parent: AwesomeTypes.Container,
     visitor: number = 0,
 ) {
   if (!node.type || typeof node.type === 'string' || node.type === AwesomeFragment) {
     if (!node.type) {
       node.dom = document.createTextNode(node.children as string) as unknown as HTMLElement;
-      parent.dom?.append(node.dom);
+      parent.append(node.dom);
     } else if (typeof node.type === 'string') {
       const el = document.createElement(node.type);
       for (const prop in node.props) {
@@ -532,21 +533,21 @@ function renderElement(
 
       for (let i = 0; i < node.children.length; ++ i) {
         const child = node.children[i];
-        sateRenderElement(child as AwesomeTypes.VDom, node, i);
+        sateRenderElement(child as AwesomeTypes.VDom, node.dom, i);
       }
 
       if ('ref' in node.props) {
         node.props.ref(el);
       }
-      parent.dom?.append(el);
+      parent.append(el);
     } else {
       const el = document.createDocumentFragment();
       node.dom = el as unknown as HTMLElement;
       for (let i = 0; i < node.children.length; ++ i) {
         const child = node.children[i];
-        sateRenderElement(child as AwesomeTypes.VDom, node, i);
+        sateRenderElement(child as AwesomeTypes.VDom, node.dom, i);
       }
-      parent.dom?.append(el);
+      parent.append(el);
     }
   } else {
     for (let i = 0; i < node.children.length; ++ i) {
@@ -578,7 +579,7 @@ function renderElement(
 
 function sateRenderElement(
     node: AwesomeTypes.VDom,
-    parent: AwesomeTypes.VDom,
+    parent: AwesomeTypes.Container,
     visitor: number = 0,
 ) {
   if (node.instance && node.instance.componentDidCatch) {

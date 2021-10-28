@@ -234,23 +234,23 @@ function firstChild(node: Awesome.VDom): HTMLElement | null {
 }
 
 function findParent(node: Awesome.VDom): Awesome.VDom {
-  let parent = node.parent;
-  while (parent?.dom instanceof DocumentFragment) {
-    parent = parent?.parent;
+  let parent = node;
+  while (parent.parent && parent?.dom instanceof DocumentFragment) {
+    parent = parent.parent;
   }
 
   return parent!;
 }
 
 function appendNextNode(
-    newNode: Awesome.VDom,
+    newNode: Awesome.Container,
     parent: Awesome.VDom,
     visitor: number,
 ) {
   for (let i = visitor; i < parent.children.length; ++ i) {
     const first = firstChild(parent.children[i] as Awesome.VDom);
     if (first) {
-      findParent(newNode).dom?.insertBefore(newNode.dom!, first);
+      findParent(parent).dom?.insertBefore(newNode, first);
       return;
     }
   }
@@ -258,7 +258,7 @@ function appendNextNode(
   if ((!parent.dom || parent.dom instanceof DocumentFragment) && parent.parent) {
     appendNextNode(newNode, parent.parent, parent.visitor + 1);
   } else {
-    parent.dom?.appendChild(newNode.dom!);
+    parent.dom?.appendChild(newNode);
   }
 }
 

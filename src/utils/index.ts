@@ -107,7 +107,24 @@ function cancelHostCallback() {
   timeoutTime = -1;
 }
 
+const eventMap = new Map();
+function registerEvent(type: 'pushState' | 'replaceState') {
+  if (eventMap.has(type)) {
+    return eventMap.get(type);
+  } else {
+    const event = new Event(type.toLocaleLowerCase());
+    const ori = history[type];
+    const dispatch = function(...rest: any) {
+      ori.apply(this, rest);
+      dispatchEvent(event);
+    };
+    eventMap.set(type, dispatch);
+    return dispatch;
+  }
+}
+
 export {
   requestHostCallback,
   cancelHostCallback,
+  registerEvent,
 };

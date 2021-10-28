@@ -84,6 +84,7 @@ function lazy(func: () => Promise<any>) {
   };
 }
 
+
 class Suspense extends AwesomeComponent<{
   fallback: AwesomeTypes.Node
 }, {
@@ -123,10 +124,6 @@ class Suspense extends AwesomeComponent<{
 }
 
 class Provider<T = any> extends CommonComponent<AwesomeTypes.ProviderProps<T>> {
-  static defaultProps: any = {
-    value: undefined,
-  }
-
   render() {
     return this.props.children;
   }
