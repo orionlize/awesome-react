@@ -224,7 +224,7 @@ function Example() {
   </>;
 }
 
-const Context = Awesome.createContext('123');
+const Context = Awesome.createContext(123);
 class Consumer extends AwesomeComponent {
   static contextType = Context
 
@@ -256,7 +256,7 @@ class Provider extends AwesomeComponent<{}, {
           data: data + 1,
         });
       }}>click!</div>
-      <Context.Provider value={String(data)}>
+      <Context.Provider value={data}>
         {/* <Bpp>
           <Consumer />
         </Bpp>
@@ -265,6 +265,9 @@ class Provider extends AwesomeComponent<{}, {
             (value: string) => <div>{value}</div>
           }
         </Context.Consumer> */}
+        <Context.Provider value={200}>
+          <FuncContext />
+        </Context.Provider>
         <FuncContext />
       </Context.Provider>
 
@@ -296,12 +299,13 @@ AwesomeDOM.render(
         <LazyNode />
       </Suspense> */}
       {/* <Provider /> */}
-      <BrowserRouter>
+      {/* <BrowserRouter>
         <Suspense fallback={<div>loading...</div>}>
           <Switch>
             <Route exact path='/' component={LazyNode} />
             <Route exact path='/child' component={LazyNode2} />
           </Switch>
         </Suspense>
-      </BrowserRouter>
+      </BrowserRouter> */}
+      <Provider />
     </>, document.getElementById('root'));

@@ -225,7 +225,7 @@ function useContext<T>(_context: T) {
   }
 
   appendContext(context);
-  return Reflect.get(context.value, 'value');
+  return Reflect.get(context.value.Provider, 'value');
 }
 
 export default {

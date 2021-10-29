@@ -303,21 +303,15 @@ function appendNextNode(
 function putNearestContext(node: Awesome.VDom, contextNode?: Awesome.ListNode<any>) {
   const Provider = (node.type as typeof AwesomeComponent).contextType?.Provider || contextNode?.value.Provider;
   if (Provider) {
-    let parent = node.parent;
-    while (parent && !(parent.instance instanceof Provider)) {
-      parent = parent?.parent;
-    }
-    if (parent) {
-      if (node.instance) {
-        if (node.instance?.context !== (parent.instance?.props as Awesome.ProviderProps<any>).value) {
-          node.instance.context = (parent.instance?.props as Awesome.ProviderProps<any>).value;
-          return true;
-        }
-      } else {
-        if (contextNode) {
-          Reflect.set(contextNode.value, 'value', (parent.instance?.props as Awesome.ProviderProps<any>).value);
-          return true;
-        }
+    if (node.instance) {
+      if (node.instance?.context !== Reflect.get(Provider as Function, 'value')) {
+        node.instance.context = Reflect.get(Provider as Function, 'value');
+        return true;
+      }
+    } else {
+      if (contextNode) {
+        Reflect.set(contextNode.value, 'value', Reflect.get(Provider as Function, 'value'));
+        return true;
       }
     }
   }

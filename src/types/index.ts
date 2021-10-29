@@ -64,6 +64,18 @@ interface ListNode<T> {
   perv?: ListNode<T>
 }
 
+interface HashHistory {
+  hash: string,
+  listen: (func: (e: Event) => void) => void
+  unListen:(func: (e: Event) => void) => void
+}
+
+interface BrowserHistory {
+  path: string
+  listen: (func: (e: Event) => void) => void
+  unListen:(func: (e: Event) => void) => void
+}
+
 export {
   Node,
   NodeType,
@@ -88,4 +100,6 @@ export {
   Component,
   ProviderProps,
   ConsumerProps,
+  HashHistory,
+  BrowserHistory,
 };
