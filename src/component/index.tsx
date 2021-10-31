@@ -2,6 +2,7 @@
 import {dispatchRoot} from '@/node';
 import * as AwesomeTypes from '@/types';
 import Awesome from '@/awesome';
+import {AwesomeProvider} from '@/const';
 
 class CommonComponent <P = {}, S = {}, SS = {}> implements AwesomeTypes.Component<P, S, SS> {
   static defaultProps?: {[key: string]: any}
@@ -123,6 +124,8 @@ class Suspense extends AwesomeComponent<{
 }
 
 class Provider<T> extends AwesomeComponent<AwesomeTypes.ProviderProps<T>> {
+  static _type = AwesomeProvider
+
   render() {
     return this.props.children;
   }

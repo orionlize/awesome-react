@@ -1,6 +1,5 @@
 import * as AwesomeTypes from '@/types';
-import {CommonComponent, Provider} from '@/component';
-import {AwesomeFragment} from '@/const';
+import {AwesomeFragment, AwesomeProvider} from '@/const';
 import {dispatchState, dispatchEffect, dispatchRef, dispatchMemo, dispatchCallback, appendNextNode, putNearestContext, dispatchContext} from '@/node';
 
 function build(
@@ -37,17 +36,17 @@ function build(
       visitor,
     };
     if (typeof type === 'function') {
-      if (type.prototype instanceof CommonComponent) {
-        const Type = type as new(props: any) => CommonComponent;
+      if ('render' in type.prototype) {
+        const Type = type as new(props: any) => any;
         el.instance = new Type(element.props);
-        el.instance._node = el;
+        el.instance!._node = el;
         const oldValue = Reflect.get(el.type as Function, 'value');
-        if (el.instance instanceof Provider) {
+        if (Reflect.get(type, '_type') === AwesomeProvider) {
           Reflect.set(el.type as Function, 'value', el.props.value);
         }
         putNearestContext(el);
-        build(el.instance.render(), el, 0);
-        if (el.instance instanceof Provider) {
+        build(el.instance!.render(), el, 0);
+        if (Reflect.get(type, '_type') === AwesomeProvider) {
           Reflect.set(el.type as Function, 'value', oldValue);
         }
       } else {
@@ -400,7 +399,7 @@ function diff(
           old,
           node,
           visitor,
-          !(element.type.prototype instanceof CommonComponent),
+          !('render' in element.type.prototype),
       );
       if (old.instance && old.instance._updated) {
         old.instance.componentDidUpdate && old.instance.componentDidUpdate();
@@ -462,8 +461,8 @@ function rebuild(
 ) {
   if (node.instance) {
     const oldValue = Reflect.get(node.type as Function, 'value');
-    if (node.instance instanceof Provider) {
-      Reflect.set(node.type as Function, 'value', node.props.value);
+    if (typeof node.type === 'function' && Reflect.get(node.type, '_type') === AwesomeProvider) {
+      Reflect.set(node.type, 'value', node.props.value);
     }
 
     if ('componentDidCatch' in node.instance) {
@@ -476,7 +475,7 @@ function rebuild(
     } else {
       updateClassNode(node, workingNode, visitor);
     }
-    if (node.instance instanceof Provider) {
+    if (typeof node.type === 'function' && Reflect.get(node.type, '_type') === AwesomeProvider) {
       Reflect.set(node.type as Function, 'value', oldValue);
     }
   } else if (typeof node.type === 'function') {

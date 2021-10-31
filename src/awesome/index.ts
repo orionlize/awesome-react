@@ -1,8 +1,6 @@
 import * as AwesomeTypes from '@/types';
 import {dispatchEffect, dispatchRoot, dispatchState, dispatchRef, dispatchMemo, dispatchCallback, dispatchContext} from '@/node';
 import {AwesomeType, AwesomeFragment} from '@/const';
-
-import React from 'react';
 import {Consumer, Provider} from '@/component';
 
 function createElement(
@@ -65,7 +63,7 @@ function createRef<T>() {
     configurable: true,
   });
 
-  return ref as unknown as React.RefObject<T>;
+  return ref as unknown as AwesomeTypes.RefObject<T>;
 }
 
 function createContext<T = any>(value: T) {
@@ -207,7 +205,7 @@ function useCallback<T>(cb: () => (() => T) | T, dependencies?: any[]) {
   return callback.value[0];
 }
 
-function useRef<T>():React.RefObject<T> {
+function useRef<T>():AwesomeTypes.RefObject<T> {
   const {getRef, appendRef} = dispatchRef();
   const ref = getRef();
 

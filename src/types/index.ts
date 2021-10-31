@@ -14,6 +14,7 @@ type SVGElement = React.ReactSVGElement
 type DOMAttributes<T> = React.DOMAttributes<T>
 type DOMElement<P extends HTMLAttributes<T> | SVGAttributes<T>, T extends Element> = React.DOMElement<P, T>
 type Ref<T> = React.LegacyRef<T>
+type RefObject<T> = React.RefObject<T>
 
 type Container = Element | Document | DocumentFragment
 type JSXElementConstructor<P extends {children: ChildrenNode | string}> =
@@ -100,6 +101,7 @@ export {
   SVGElement,
   DOMAttributes,
   DOMElement,
+  RefObject,
   Ref,
   Container,
   AwesomeElement,
