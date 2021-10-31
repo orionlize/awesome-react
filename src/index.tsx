@@ -311,12 +311,12 @@ function Subscribe2() {
 // @ts-ignore
 @observer({store2})
 class Subscribe3 extends AwesomeComponent<{
-  store: Store,
-  store2: Store2
+  store?: Store,
+  store2?: Store2
 }> {
   render() {
     return <>
-      <div>{this.props.store2.b}-{this.props.store.computedA}</div>
+      <div>{this.props.store2!.b}-{this.props.store!.computedA}</div>
     </>;
   }
 }
