@@ -12,3 +12,7 @@ class Store {
 const store = Awesome.createContext(new Store());
 
 export default store;
+
+export {
+  Store,
+};

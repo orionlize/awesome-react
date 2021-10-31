@@ -5,8 +5,8 @@ import AwesomeDOM from './awesome-dom/index';
 import {AwesomeComponent, lazy, Suspense} from './component';
 import {HashRouter, BrowserRouter, Route, Switch} from './awesome-router';
 import {observer, Provider} from './awesome-mobx';
-import store from './store';
-import store2 from './store/index2';
+import store, { Store } from './store';
+import store2, { Store2 } from './store/index2';
 import store3 from './store/index3';
 
 function App() {
@@ -310,19 +310,13 @@ function Subscribe2() {
 @observer({store})
 // @ts-ignore
 @observer({store2})
-class Subscribe3 extends AwesomeComponent {
+class Subscribe3 extends AwesomeComponent<{
+  store: Store,
+  store2: Store2
+}> {
   render() {
     return <>
-      <store2.Consumer>
-        {
-          (val1: any) =>
-            <store.Consumer>
-              {
-                (val2: any) => <div>{val1.b}-{val2.computedA}</div>
-              }
-            </store.Consumer>
-        }
-      </store2.Consumer>
+      <div>{this.props.store2.b}-{this.props.store.computedA}</div>
     </>;
   }
 }

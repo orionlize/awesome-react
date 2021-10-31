@@ -1,7 +1,7 @@
 import Awesome from '@/awesome';
 import {observable, computed} from '@/awesome-mobx';
 
-class Store {
+class Store3 {
   @observable a = 10
 
   @computed get computedA() {
@@ -9,4 +9,8 @@ class Store {
   }
 }
 
-export default new Store();
+export default Awesome.createContext(new Store3());
+
+export {
+  Store3,
+};
