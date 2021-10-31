@@ -24,8 +24,6 @@ function render(
         AwesomeReconciler.rebuild((root.children as AwesomeTypes.VDom[])[0], cur, 0);
         root.children = cur.children;
         root.patches = [];
-        // console.log(root);
-
         isDispatching = false;
       }, 500);
     } else {

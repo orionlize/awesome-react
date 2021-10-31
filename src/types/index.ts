@@ -64,6 +64,30 @@ interface ListNode<T> {
   perv?: ListNode<T>
 }
 
+interface HashHistory {
+  hash: string,
+  listen: (func: (e: Event) => void) => void
+  unListen:(func: (e: Event) => void) => void
+}
+
+interface BrowserHistory {
+  path: string
+  listen: (func: (e: Event) => void) => void
+  unListen:(func: (e: Event) => void) => void
+}
+
+interface Provider<T> {
+  (props: ProviderProps<T>): any
+}
+interface Consumer<T> {
+  (props: ConsumerProps<T>): any
+}
+
+interface Context<T> {
+  Provider: Provider<T>,
+  Consumer: Consumer<T>,
+}
+
 export {
   Node,
   NodeType,
@@ -86,6 +110,11 @@ export {
   VDom,
   ListNode,
   Component,
+  Provider,
+  Consumer,
+  Context,
   ProviderProps,
   ConsumerProps,
+  HashHistory,
+  BrowserHistory,
 };

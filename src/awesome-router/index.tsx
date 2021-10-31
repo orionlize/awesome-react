@@ -1,9 +1,9 @@
 import Awesome from '@/awesome';
 import * as AwesomeTypes from '@/types';
 import {AwesomeComponent} from '@/component';
-import {registerEvent} from '@/utils';
+import {createHashHistory, createBrowserHistory, getUrl} from '@/awesome-router-dom';
 
-const Context = Awesome.createContext('/');
+const Context = Awesome.createContext('');
 
 class HashRouter extends AwesomeComponent<{}, {
   hash: string
@@ -11,20 +11,21 @@ class HashRouter extends AwesomeComponent<{}, {
   state = {
     hash: '',
   }
+  history = createHashHistory(this.state.hash);
 
   hashChange = () => {
     this.setState({
-      hash: window.location.hash.slice(1),
+      hash: getUrl(),
     });
   }
 
   componentDidMount() {
     this.hashChange();
-    window.addEventListener('hashchange', this.hashChange);
+    this.history.listen(this.hashChange);
   }
 
   componentWillUnmount() {
-    window.removeEventListener('hashchange', this.hashChange);
+    this.history.unListen(this.hashChange);
   }
 
   render() {
@@ -42,28 +43,21 @@ class BrowserRouter extends AwesomeComponent<{}, {
     path: '',
   }
 
+  history = createBrowserHistory(this.state.path);
+
   pathChange = () => {
     this.setState({
-      path: window.location.pathname,
+      path: getUrl(),
     });
   }
 
   componentDidMount() {
     this.pathChange();
-
-    const _pushState = registerEvent('pushState');
-    const _replaceState = registerEvent('replaceState');
-    window.history.pushState = _pushState;
-    window.history.replaceState = _replaceState;
-    window.addEventListener('popstate', this.pathChange);
-    window.addEventListener('pushstate', this.pathChange);
-    window.addEventListener('replacestate', this.pathChange);
+    this.history.listen(this.pathChange);
   }
 
   componentWillUnmount() {
-    window.removeEventListener('popstate', this.pathChange);
-    window.removeEventListener('pushstate', this.pathChange);
-    window.removeEventListener('replacestate', this.pathChange);
+    this.history.unListen(this.pathChange);
   }
 
   render() {
@@ -81,22 +75,17 @@ class Switch extends AwesomeComponent<{
   static contextType = Context;
 
   render() {
-    return (this.props.children as AwesomeTypes.ChildrenNode[]).reduce((a: any, b: any) => {
-      if (a) {
-        return a;
-      } else {
-        if (b) {
-          const {exact, path} = b.props;
-          if (exact ? this.context === path : path.includes(this.context)) {
-            return b;
-          } else {
-            return null;
-          }
-        } else {
-          return null;
+    let find = false;
+    return (this.props.children as AwesomeTypes.ChildrenNode[]).map((child) => {
+      if (!find && typeof child === 'object' && 'props' in child) {
+        const {exact, path} = child.props;
+        if (exact ? this.context === path : path.includes(this.context)) {
+          find = true;
+          return child;
         }
       }
-    }, null);
+      return null;
+    });
   }
 }
 
@@ -110,18 +99,26 @@ class Route extends AwesomeComponent<{
   static contextType = Context;
 
   componentDidCatch(e: any) {
-    console.log(e);
-    e().then((res: {default: Function}) => {
+    if (Reflect.has(e, 'cache')) {
+      const LazyComponent = Reflect.get(e, 'cache');
       this.setState({
-        element: <res.default />,
+        element: <LazyComponent />,
       });
-    });
+    } else {
+      e().then((res: {default: Function}) => {
+        Reflect.set(e, 'cache', res.default);
+        this.setState({
+          element: <res.default />,
+        });
+      });
+    }
   }
 
   render() {
     const {path, exact, component: RouteComponent} = this.props;
     const {element} = this.state;
     const visible = exact ? this.context === path : path.includes(this.context);
+
     return <>
       {
         (visible && element) || (visible && <RouteComponent />)

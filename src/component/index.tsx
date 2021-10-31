@@ -1,10 +1,11 @@
 // import {Map as createMap, is as equal} from 'immutable';
 import {dispatchRoot} from '@/node';
 import * as AwesomeTypes from '@/types';
-import Awesome, {createContext} from '@/awesome';
+import Awesome from '@/awesome';
 
 class CommonComponent <P = {}, S = {}, SS = {}> implements AwesomeTypes.Component<P, S, SS> {
   static defaultProps?: {[key: string]: any}
+  static contextType?: AwesomeTypes.Context<any>
   props: P extends {children: (value: any) => AwesomeTypes.ChildrenNode | ((value: any) => AwesomeTypes.ChildrenNode)[]} ? P : P & {children?: AwesomeTypes.ChildrenNode | AwesomeTypes.ChildrenNode[]}
   state: S = {} as S
   context: any
@@ -12,7 +13,7 @@ class CommonComponent <P = {}, S = {}, SS = {}> implements AwesomeTypes.Componen
   setState(_state: S) {}
   forceUpdate() {}
 
-  _node?: AwesomeTypes.VDom
+   _node?: AwesomeTypes.VDom
   _updated?: boolean
 
   constructor(props: P) {
@@ -34,8 +35,6 @@ class CommonComponent <P = {}, S = {}, SS = {}> implements AwesomeTypes.Componen
 
 class AwesomeComponent<P = {}, S = {}, SS = {}> extends CommonComponent<P, S, SS> {
   static defaultProps?: {[key: string]: any}
-  // @ts-ignore
-  static contextType?: ReturnType<typeof createContext>
 
   setState(_state: S) {
     this._node?.patches!.push({
@@ -123,13 +122,13 @@ class Suspense extends AwesomeComponent<{
   }
 }
 
-class Provider<T = any> extends CommonComponent<AwesomeTypes.ProviderProps<T>> {
+class Provider<T> extends AwesomeComponent<AwesomeTypes.ProviderProps<T>> {
   render() {
     return this.props.children;
   }
 }
 
-class Consumer<T = any> extends AwesomeComponent<AwesomeTypes.ConsumerProps<T>> {
+class Consumer<T> extends AwesomeComponent<AwesomeTypes.ConsumerProps<T>> {
   render() {
     return (this.props.children as unknown as Array<Function>).map((child) => child(this.context));
   }

@@ -1,5 +1,5 @@
 import * as AwesomeTypes from '@/types';
-import {CommonComponent} from '@/component';
+import {CommonComponent, Provider} from '@/component';
 import {AwesomeFragment} from '@/const';
 import {dispatchState, dispatchEffect, dispatchRef, dispatchMemo, dispatchCallback, appendNextNode, putNearestContext, dispatchContext} from '@/node';
 
@@ -41,8 +41,15 @@ function build(
         const Type = type as new(props: any) => CommonComponent;
         el.instance = new Type(element.props);
         el.instance._node = el;
+        const oldValue = Reflect.get(el.type as Function, 'value');
+        if (el.instance instanceof Provider) {
+          Reflect.set(el.type as Function, 'value', el.props.value);
+        }
         putNearestContext(el);
         build(el.instance.render(), el, 0);
+        if (el.instance instanceof Provider) {
+          Reflect.set(el.type as Function, 'value', oldValue);
+        }
       } else {
         const {getState, getStateTail, setState} = dispatchState();
         const {getEffectHooks, getEffectTail, setEffectHooks} = dispatchEffect();
@@ -77,7 +84,7 @@ function build(
         setRef(el.refStart);
         setContext(el.contextStart);
 
-        let functionComponent = (type as ((props: any) => AwesomeTypes.AwesomeElement<any, any> | null))(element.props);
+        const functionComponent = (type as ((props: any) => AwesomeTypes.AwesomeElement<any, any> | null))(element.props);
         if (getState() !== el.stateStart) {
           if (el.effectEnd == null) {
             el.stateEnd = getState().perv;
@@ -119,21 +126,6 @@ function build(
           }
         } else {
           delete el.contextStart;
-        }
-
-        let p = el.contextStart;
-        if (p?.value) {
-          while (p) {
-            if (p.value) {
-              putNearestContext(el, p);
-            }
-            if (p !== el.contextEnd) {
-              p = p.next!;
-            } else {
-              break;
-            }
-          }
-          functionComponent = (type as ((props: any) => AwesomeTypes.AwesomeElement<any, any> | null))(element.props);
         }
 
         build(functionComponent, el, 0);
@@ -306,8 +298,6 @@ function diff(
     old: AwesomeTypes.VDom | null,
     visitor: number,
 ) {
-  debugger;
-
   if (Array.isArray(element)) {
     for (let j = 0; j < element.length; ++ j) {
       diff(
@@ -421,7 +411,10 @@ function diff(
     if (!element && !old) {
       return;
     } else if (!element) {
-
+      unmount(old!);
+      (node.children[visitor] as AwesomeTypes.VDom).children = [];
+      (node.children[visitor] as AwesomeTypes.VDom).type = AwesomeFragment;
+      (node.children[visitor] as AwesomeTypes.VDom).props = null;
     } else if (!old) {
       build(element, node, visitor);
       sateRenderElement((node.children as AwesomeTypes.VDom[])[visitor], node.dom!, visitor);
@@ -468,15 +461,23 @@ function rebuild(
     isForce: boolean = false,
 ) {
   if (node.instance) {
-    if (node.instance.componentDidCatch) {
+    const oldValue = Reflect.get(node.type as Function, 'value');
+    if (node.instance instanceof Provider) {
+      Reflect.set(node.type as Function, 'value', node.props.value);
+    }
+
+    if ('componentDidCatch' in node.instance) {
       try {
         updateClassNode(node, workingNode, visitor);
       } catch (error: any) {
-        node.instance.componentDidCatch(error);
+        node.instance.componentDidCatch && node.instance.componentDidCatch(error);
         node.instance.getDerivedStateFromError && node.instance.getDerivedStateFromError();
       }
     } else {
       updateClassNode(node, workingNode, visitor);
+    }
+    if (node.instance instanceof Provider) {
+      Reflect.set(node.type as Function, 'value', oldValue);
     }
   } else if (typeof node.type === 'function') {
     let p = node.stateStart;
@@ -487,17 +488,6 @@ function rebuild(
         p.value = p.future;
       }
       if (p !== node.stateEnd) {
-        p = p.next;
-      } else {
-        break;
-      }
-    }
-    p = node.contextStart;
-    while (p) {
-      if (p.value) {
-        putNearestContext(node, p);
-      }
-      if (p !== node.contextEnd) {
         p = p.next;
       } else {
         break;

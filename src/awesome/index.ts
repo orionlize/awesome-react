@@ -2,7 +2,8 @@ import * as AwesomeTypes from '@/types';
 import {dispatchEffect, dispatchRoot, dispatchState, dispatchRef, dispatchMemo, dispatchCallback, dispatchContext} from '@/node';
 import {AwesomeType, AwesomeFragment} from '@/const';
 
-import {Provider, Consumer} from '@/component';
+import React from 'react';
+import {Consumer, Provider} from '@/component';
 
 function createElement(
   type: 'input',
@@ -74,9 +75,11 @@ function createContext<T = any>(value: T) {
   const context = {
     Provider: _providerClass,
     Consumer: _consumerClass,
-  };
+  } as unknown as AwesomeTypes.Context<T>;
 
-  _providerClass.defaultProps = {value};
+  if (value) {
+    Reflect.set(_providerClass, 'value', value);
+  }
   _consumerClass.contextType = context;
 
   return context;
@@ -216,7 +219,7 @@ function useRef<T>():React.RefObject<T> {
   return ref.value;
 }
 
-function useContext<T>(_context: T) {
+function useContext<T>(_context: AwesomeTypes.Context<T>) {
   const {getContext, appendContext} = dispatchContext();
   const context = getContext();
 
@@ -225,7 +228,7 @@ function useContext<T>(_context: T) {
   }
 
   appendContext(context);
-  return Reflect.get(context.value, 'value');
+  return Reflect.get(context.value.Provider, 'value') as T;
 }
 
 export default {
@@ -255,4 +258,3 @@ export {
   useContext,
   AwesomeFragment,
 };
-

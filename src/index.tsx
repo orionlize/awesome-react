@@ -1,7 +1,13 @@
+/* eslint-disable */
+
 import Awesome from './awesome/index';
 import AwesomeDOM from './awesome-dom/index';
 import {AwesomeComponent, lazy, Suspense} from './component';
 import {HashRouter, BrowserRouter, Route, Switch} from './awesome-router';
+import {observer, Provider} from './awesome-mobx';
+import store from './store';
+import store2 from './store/index2';
+import store3 from './store/index3';
 
 function App() {
   const [n, setN] = Awesome.useState(5);
@@ -224,7 +230,7 @@ function Example() {
   </>;
 }
 
-const Context = Awesome.createContext('123');
+const Context = Awesome.createContext(123);
 class Consumer extends AwesomeComponent {
   static contextType = Context
 
@@ -241,39 +247,85 @@ function FuncContext() {
   return <div>{value}</div>;
 }
 
-class Provider extends AwesomeComponent<{}, {
-  data: number
-}> {
-  state = {
-    data: 123,
-  }
+// class Provider extends AwesomeComponent<{}, {
+//   data: number
+// }> {
+//   state = {
+//     data: 123,
+//   }
 
-  render() {
-    const {data} = this.state;
-    return <div>
-      <div onClick={() => {
-        this.setState({
-          data: data + 1,
-        });
-      }}>click!</div>
-      <Context.Provider value={String(data)}>
-        {/* <Bpp>
-          <Consumer />
-        </Bpp>
-        <Context.Consumer>
-          {
-            (value: string) => <div>{value}</div>
-          }
-        </Context.Consumer> */}
-        <FuncContext />
-      </Context.Provider>
+//   render() {
+//     const {data} = this.state;
+//     return <div>
+//       <div onClick={() => {
+//         this.setState({
+//           data: data + 1,
+//         });
+//       }}>click!</div>
+//       <Context.Provider value={data}>
+//         <Bpp>
+//           <Consumer />
+//         </Bpp>
+//         <Context.Consumer>
+//           {
+//             (value: number) => <div>{value}</div>
+//           }
+//         </Context.Consumer>
+//         <Context.Provider value={200}>
+//           <FuncContext />
+//         </Context.Provider>
+//         <FuncContext />
+//       </Context.Provider>
 
-    </div>;
-  }
-}
+//     </div>;
+//   }
+// }
 
 const LazyNode = lazy(() => import('@/page/index'));
 const LazyNode2 = lazy(() => import('@/page/index2'));
+
+function Subscribe() {
+  const data = Awesome.useContext(store);
+
+  return <>
+    <button onClick={() => {
+      ++ data.a;
+    }}>click</button>
+    <div>{data.computedA}</div>
+  </>;
+}
+
+function Subscribe2() {
+  const data = Awesome.useContext(store2);
+
+  return <>
+    <button onClick={() => {
+      ++ data.b;
+    }}>click</button>
+    <div>{data.b}</div>
+  </>;
+}
+
+// @ts-ignore
+@observer({store})
+// @ts-ignore
+@observer({store2})
+class Subscribe3 extends AwesomeComponent {
+  render() {
+    return <>
+      <store2.Consumer>
+        {
+          (val1: any) =>
+            <store.Consumer>
+              {
+                (val2: any) => <div>{val1.b}-{val2.computedA}</div>
+              }
+            </store.Consumer>
+        }
+      </store2.Consumer>
+    </>;
+  }
+}
 
 AwesomeDOM.render(
     <>
@@ -296,12 +348,20 @@ AwesomeDOM.render(
         <LazyNode />
       </Suspense> */}
       {/* <Provider /> */}
-      <BrowserRouter>
+      {/* <BrowserRouter>
         <Suspense fallback={<div>loading...</div>}>
           <Switch>
             <Route exact path='/' component={LazyNode} />
             <Route exact path='/child' component={LazyNode2} />
           </Switch>
         </Suspense>
-      </BrowserRouter>
+      </BrowserRouter> */}
+      <Provider store={{
+        store,
+        store2,
+      }}>
+        <Subscribe />
+        <Subscribe2 />
+        <Subscribe3 />
+      </Provider>
     </>, document.getElementById('root'));
