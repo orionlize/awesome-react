@@ -1,5 +1,9 @@
 const a = 100;
 
 export function foo() {
-  return a + 5;
+  if ( a === 100) {
+    return a + 5;
+  } else {
+    return a;
+  }
 }

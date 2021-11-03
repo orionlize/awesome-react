@@ -6,12 +6,12 @@ class Scope {
   constructor(options = {}) {
     this.parent = options.parent;
     this.depth = this.parent ? this.parent.depth + 1 : 0;
-    this.names = options || new Set();
-    this.isBlockScope = !!options.block;
+    this.names = options.params || new Set();
+    this.isBlockScope = options.block;
   }
 
   add(name, isBlockDeclaration) {
-    if (!isBlockDeclaration && !this.isBlockScope) {
+    if (!isBlockDeclaration && this.isBlockScope) {
       this.parent.add(name, isBlockDeclaration);
     } else {
       this.names.add(name);
@@ -20,7 +20,7 @@ class Scope {
 
   contain(name) {
     if (this.names.has(name)) {
-      return !!name;
+      return name;
     } else {
       if (this.parent) {
         return this.parent.contain(name);
@@ -75,9 +75,36 @@ function recursionModule(node, exports) {
   }
 }
 
+scope = new Scope();
+
+modules._scope = new Scope({
+  parent: scope,
+  block: true,
+});
 for (let i = 0; i < modules.body.length; ++ i) {
   const node = modules.body[i];
+  setScope(node, modules);
   recursionModule(node);
+}
+
+function setScope(node, parent) {
+  node._scope = new Scope({
+    parent: parent._scope,
+    block: node.type === 'ImportDeclaration' || node.type === 'BlockStatement',
+  });
+  if (node.type === 'VariableDeclaration') {
+    for (const declaration of declarations) {
+      node._scope.add(declaration.id.name, node.kind !== 'var');
+    }
+  }
+  if (node.type === 'FunctionDeclaration') {
+    node._scope.add(node.id.name, true);
+  }
+  if (node.body) {
+    for (const _node of node.body) {
+      setScope(_node, parent);
+    }
+  }
 }
 
 const code = new MagicString('');

@@ -1,8 +1,8 @@
 const a = 100;
 
-function foo2() {
+const foo2 = function() {
   return a;
-}
+};
 
 export {
   foo2,
