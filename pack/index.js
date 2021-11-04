@@ -1,3 +1,8 @@
+// 'use strict';
+
+const {JSDOM} = require('jsdom');
+const window = (new JSDOM(``, {pretendToBeVisual: true})).window;
+
 const fs = require('fs');
 const esprima = require('esprima');
 const path = require('path');
@@ -24,10 +29,10 @@ class Scope {
     } else {
       if (this.parent) {
         return this.parent.contain(name);
+      } else {
+        return Reflect.has(window, name) || Reflect.has(globalThis, name);
       }
     }
-
-    return null;
   }
 }
 
@@ -43,7 +48,8 @@ function parseModule(input, config) {
 const modules = parseModule(content);
 modules._scope = new Scope();
 
-function recursionModule(node, exports) {
+function recursionModule(node, parent, exports) {
+  setScope(node, parent);
   if (node.type === 'ImportDeclaration') {
     const relative = node.source.value;
     node.body = [];
@@ -55,7 +61,7 @@ function recursionModule(node, exports) {
 
     for (let j = 0; j < _modules.length; ++ j) {
       const _node = _modules[j];
-      const ret = recursionModule(_node, node.exports);
+      const ret = recursionModule(_node, node, node.exports);
       node.body.push(ret);
     }
 
@@ -64,6 +70,7 @@ function recursionModule(node, exports) {
     if (node.type === 'ExportNamedDeclaration') {
       if (node.declaration) {
         exports.push(node.declaration.id.name);
+        recursionModule(node.declaration, parent, exports);
       }
       if (Array.isArray(node.specifiers)) {
         for (const specifier of node.specifiers) {
@@ -81,31 +88,85 @@ modules._scope = new Scope({
   parent: scope,
   block: true,
 });
-for (let i = 0; i < modules.body.length; ++ i) {
-  const node = modules.body[i];
-  setScope(node, modules);
-  recursionModule(node);
+
+for (const node of modules.body) {
+  recursionModule(node, modules);
 }
 
 function setScope(node, parent) {
   node._scope = new Scope({
     parent: parent._scope,
-    block: node.type === 'ImportDeclaration' || node.type === 'BlockStatement',
+    block: node.type === 'ImportDeclaration' || node.type === 'ForStatement' || node.type === 'BlockStatement',
   });
   if (node.type === 'VariableDeclaration') {
-    for (const declaration of declarations) {
-      node._scope.add(declaration.id.name, node.kind !== 'var');
+    for (const declaration of node.declarations) {
+      parent._scope.add(declaration.id.name, node.kind !== 'var');
     }
   }
   if (node.type === 'FunctionDeclaration') {
-    node._scope.add(node.id.name, true);
+    parent._scope.add(node.id.name, true);
   }
-  if (node.body) {
-    for (const _node of node.body) {
-      setScope(_node, parent);
+
+  for (const attribute in node) {
+    if (node[attribute] && typeof node[attribute] === 'object' && !/^_/.test(attribute)) {
+      if (Array.isArray(node[attribute])) {
+        for (const _node of node[attribute]) {
+          setScope(_node, node);
+        }
+      } else {
+        setScope(node[attribute], node);
+      }
     }
   }
 }
+
+function findDependencies(node, root) {
+  root._dependencies = root._dependencies || [];
+
+  if (node.type === 'Identifier') {
+    if (!node._scope.contain(node.name)) {
+      root._dependencies.push(node.name);
+    }
+
+    return;
+  }
+
+  for (const attribute in node) {
+    if ((node.type === 'VariableDeclarator' || node.type === 'FunctionDeclaration') && attribute === 'id') {
+      continue;
+    }
+    if (attribute === 'property') {
+      continue;
+    }
+    if (node.type === 'ImportDefaultSpecifier') {
+      continue;
+    }
+
+    if (node[attribute] && typeof node[attribute] === 'object' && !/^_/.test(attribute)) {
+      if (Array.isArray(node[attribute])) {
+        for (const _node of node[attribute]) {
+          if (_node.type === 'ExportNamedDeclaration') {
+            findDependencies(_node, _node);
+          } else {
+            findDependencies(_node, root);
+          }
+        }
+      } else {
+        if (node[attribute].type === 'ExportNamedDeclaration') {
+          findDependencies(node[attribute], node[attribute]);
+        } else {
+          findDependencies(node[attribute], root);
+        }
+      }
+    }
+  }
+}
+
+for (const node of modules.body) {
+  findDependencies(node, modules);
+}
+
+debugger;
 
 const code = new MagicString('');
 
@@ -207,7 +268,6 @@ function transform(modules) {
 }
 
 transform(modules);
-debugger;
 
 const map = code.generateMap({
   source: 'source.js',
