@@ -1,1 +1,0 @@
-var all = (function () {const a=100;function foo(){;};return {foo}})();var {foo}=all;var {foo2}=(function () {const a=100;const foo2=;return {foo2}})();console.log(foo2()+5);console.log(foo());

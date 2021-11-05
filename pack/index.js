@@ -11,7 +11,7 @@ class Scope {
   constructor(options = {}) {
     this.parent = options.parent;
     this.depth = this.parent ? this.parent.depth + 1 : 0;
-    this.names = options.params || new Set();
+    this.names = options.params || new Map();
     this.isBlockScope = options.block;
   }
 
@@ -19,12 +19,13 @@ class Scope {
     if (!isBlockDeclaration && this.isBlockScope) {
       this.parent.add(name, isBlockDeclaration);
     } else {
-      this.names.add(name);
+      this.names.set(name, false);
     }
   }
 
   contain(name) {
     if (this.names.has(name)) {
+      this.names.set(name, true);
       return name;
     } else {
       if (this.parent) {
@@ -32,6 +33,18 @@ class Scope {
       } else {
         return Reflect.has(window, name) || Reflect.has(globalThis, name);
       }
+    }
+  }
+
+  findNotBlock() {
+    if (this.parent) {
+      if (!this.parent.isBlockScope) {
+        return this.parent;
+      } else {
+        return this.parent.findNotBlock();
+      }
+    } else {
+      return this;
     }
   }
 }
@@ -53,7 +66,7 @@ function recursionModule(node, parent, exports) {
   if (node.type === 'ImportDeclaration') {
     const relative = node.source.value;
     node.body = [];
-    node.exports = [];
+    node.exports = new Set();
     const _content = fs.readFileSync(path.resolve(__dirname, 'test', `${relative}.js`), {
       encoding: 'utf-8',
     });
@@ -69,12 +82,12 @@ function recursionModule(node, parent, exports) {
   } else {
     if (node.type === 'ExportNamedDeclaration') {
       if (node.declaration) {
-        exports.push(node.declaration.id.name);
+        exports.add(node.declaration.id.name);
         recursionModule(node.declaration, parent, exports);
       }
       if (Array.isArray(node.specifiers)) {
         for (const specifier of node.specifiers) {
-          exports.push(specifier.exported.name);
+          exports.add(specifier.exported.name);
         }
       }
     }
@@ -96,7 +109,7 @@ for (const node of modules.body) {
 function setScope(node, parent) {
   node._scope = new Scope({
     parent: parent._scope,
-    block: node.type === 'ImportDeclaration' || node.type === 'ForStatement' || node.type === 'BlockStatement',
+    block: node.type === 'ImportDeclaration' || node.type === 'ForStatement' || node.type === 'BlockStatement' || node.type === 'ExportNamedDeclaration',
   });
   if (node.type === 'VariableDeclaration') {
     for (const declaration of node.declarations) {
@@ -104,7 +117,12 @@ function setScope(node, parent) {
     }
   }
   if (node.type === 'FunctionDeclaration') {
-    parent._scope.add(node.id.name, true);
+    parent._scope.add(node.id.name, false);
+  }
+  if (node.type === 'ImportDeclaration') {
+    for (const specifier of node.specifiers) {
+      parent._scope.add(specifier.local.name, false);
+    }
   }
 
   for (const attribute in node) {
@@ -120,17 +138,53 @@ function setScope(node, parent) {
   }
 }
 
-function findDependencies(node, root) {
-  root._dependencies = root._dependencies || [];
-
+function findDependencies(node, dependencies) {
   if (node.type === 'Identifier') {
     if (!node._scope.contain(node.name)) {
-      root._dependencies.push(node.name);
+      dependencies.add(node.name);
+    }
+  }
+  if (node.type === 'Program' || node.type === 'ImportDeclaration') {
+    const imports = node.body.filter((m) => m.type === 'ImportDeclaration');
+    const notImports = node.body.filter((m) => m.type !== 'ImportDeclaration');
+
+    const _dependencies = new Set();
+    for (const _node of notImports) {
+      findDependencies(_node, _dependencies);
     }
 
-    return;
-  }
+    const used = new Set(node._scope.names.keys((key) => node._scope.names.get(key)));
+    const prev = node._scope.findNotBlock();
+    const notBlockUsed = new Set(prev.names.keys((key) => prev.names.get(key)));
 
+    for (const _node of imports) {
+      const exportNode = _node.body.filter((n) => n.type === 'ExportNamedDeclaration');
+      for (const __node of exportNode) {
+        // 添加变量的判断
+        if (__node.declaration) {
+          if (__node.type === 'FunctionDeclaration') {
+            if (notBlockUsed.has(__node.declaration.id.name)) {
+              _node._scope.names.set(__node.declaration.id.name, true);
+            }
+          } else if (__node.type === 'VariableDeclaration') {
+            for (const declaration of __node.declarations) {
+              if (node.kind !== 'var') {
+                if (used.has(declaration.id.name)) {
+                  _node.scope.names.set(declaration.id.name, true);
+                }
+              } else {
+                if (notBlockUsed.has(declaration.id.name)) {
+                  prev.names.set(declaration.id.name, true);
+                }
+              }
+            }
+          }
+        } else {
+
+        }
+      }
+    }
+  }
   for (const attribute in node) {
     if ((node.type === 'VariableDeclarator' || node.type === 'FunctionDeclaration') && attribute === 'id') {
       continue;
@@ -145,26 +199,50 @@ function findDependencies(node, root) {
     if (node[attribute] && typeof node[attribute] === 'object' && !/^_/.test(attribute)) {
       if (Array.isArray(node[attribute])) {
         for (const _node of node[attribute]) {
-          if (_node.type === 'ExportNamedDeclaration') {
-            findDependencies(_node, _node);
-          } else {
-            findDependencies(_node, root);
-          }
+          findDependencies(_node, dependencies);
         }
       } else {
-        if (node[attribute].type === 'ExportNamedDeclaration') {
-          findDependencies(node[attribute], node[attribute]);
+        findDependencies(node[attribute], dependencies);
+      }
+    }
+  }
+}
+
+const dependencies = new Set();
+findDependencies(modules, dependencies);
+
+function build(node) {
+  if (node._scope) {
+    if (node.type === 'VariableDeclaration') {
+      if (node.kind === 'var') {
+        const prev = node._scope.findNotBlock();
+        const notBlockUsed = new Set(Array.from(prev.names.keys()).filter((key) => prev.names.get(key)));
+        node.declarations = node.declarations.filter((variable) => notBlockUsed.has(variable.id.name));
+      } else {
+        const used = new Set(node._scope.names.keys((key) => node._scope.names.get(key)));
+        node.declarations = node.declarations.filter((variable) => used.has(variable.id.name));
+      }
+    } else if (node.type === 'FunctionDeclaration') {
+      const prev = node._scope.findNotBlock();
+      const notBlockUsed = new Set(Array.from(prev.names.keys()).filter((key) => prev.names.get(key)));
+      node.body = notBlockUsed.has(node.id.name) ? node.body : [];
+    }
+
+    for (const attribute in node) {
+      if (node[attribute] && typeof node[attribute] === 'object' && !/^_/.test(attribute)) {
+        if (Array.isArray(node[attribute])) {
+          for (const _node of node[attribute]) {
+            build(_node, dependencies);
+          }
         } else {
-          findDependencies(node[attribute], root);
+          build(node[attribute], dependencies);
         }
       }
     }
   }
 }
 
-for (const node of modules.body) {
-  findDependencies(node, modules);
-}
+build(modules);
 
 debugger;
 
@@ -267,7 +345,7 @@ function transform(modules) {
   });
 }
 
-transform(modules);
+transform(modules.body);
 
 const map = code.generateMap({
   source: 'source.js',
