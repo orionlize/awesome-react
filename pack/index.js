@@ -59,21 +59,27 @@ function parseModule(input, config) {
 }
 
 const modules = parseModule(content);
-modules._scope = new Scope();
+
+const moduleMap = new Map();
 
 function recursionModule(node, parent, exports) {
   setScope(node, parent);
   if (node.type === 'ImportDeclaration') {
     const relative = node.source.value;
+    if (moduleMap.has(relative)) {
+      return moduleMap.get(relative);
+    } else {
+      moduleMap.set(relative, node);
+    }
     node.body = [];
     node.exports = new Set();
-    const _content = fs.readFileSync(path.resolve(__dirname, 'test', `${relative}.js`), {
-      encoding: 'utf-8',
-    });
-    const _modules = parseModule(_content).body;
 
-    for (let j = 0; j < _modules.length; ++ j) {
-      const _node = _modules[j];
+    const _modules = parseModule(fs.readFileSync(path.resolve(__dirname, 'test', `${relative}.js`), {
+      encoding: 'utf-8',
+    })).body;
+
+    for (let i = 0; i < _modules.length; ++ i) {
+      const _node = _modules[i];
       const ret = recursionModule(_node, node, node.exports);
       node.body.push(ret);
     }
@@ -95,7 +101,9 @@ function recursionModule(node, parent, exports) {
   }
 }
 
-scope = new Scope();
+scope = new Scope({
+  block: false,
+});
 
 modules._scope = new Scope({
   parent: scope,
@@ -109,7 +117,7 @@ for (const node of modules.body) {
 function setScope(node, parent) {
   node._scope = new Scope({
     parent: parent._scope,
-    block: node.type === 'ImportDeclaration' || node.type === 'ForStatement' || node.type === 'BlockStatement' || node.type === 'ExportNamedDeclaration',
+    block: node.type !== 'FunctionExpression' && node.type !== 'FunctionDeclaration' && node.type !== 'ImportDeclaration',
   });
   if (node.type === 'VariableDeclaration') {
     for (const declaration of node.declarations) {
@@ -118,10 +126,18 @@ function setScope(node, parent) {
   }
   if (node.type === 'FunctionDeclaration') {
     parent._scope.add(node.id.name, false);
+    for (const param of node.params) {
+      node._scope.add(param.name, true);
+    }
   }
   if (node.type === 'ImportDeclaration') {
     for (const specifier of node.specifiers) {
-      parent._scope.add(specifier.local.name, false);
+      parent._scope.add(specifier.local.name, true);
+    }
+  }
+  if (node.type === 'ArrowFunctionExpression') {
+    for (const param of node.params) {
+      node._scope.add(param.name, true);
     }
   }
 
@@ -138,78 +154,102 @@ function setScope(node, parent) {
   }
 }
 
-function findDependencies(node, dependencies) {
+let cache = [];
+function findDependencies(node) {
   if (node.type === 'Identifier') {
-    if (!node._scope.contain(node.name)) {
-      dependencies.add(node.name);
-    }
+    node._scope.parent.contain(node.name);
+    return;
   }
-  if (node.type === 'Program' || node.type === 'ImportDeclaration') {
-    const imports = node.body.filter((m) => m.type === 'ImportDeclaration');
-    const notImports = node.body.filter((m) => m.type !== 'ImportDeclaration');
 
-    const _dependencies = new Set();
-    for (const _node of notImports) {
-      findDependencies(_node, _dependencies);
+  if (node.type === 'Program' || node.type === 'ImportDeclaration' || node.type === 'BlockStatement' || node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression') {
+    const len = cache.length;
+    const body = Array.isArray(node.body) ? node.body : [node.body];
+    for (const _node of body) {
+      if (_node.type !== 'ImportDeclaration' && _node.type !== 'VariableDeclaration' && _node.type !== 'FunctionDeclaration') {
+        findDependencies(_node);
+      } else {
+        cache.push(_node);
+      }
     }
-
-    const used = new Set(node._scope.names.keys((key) => node._scope.names.get(key)));
-    const prev = node._scope.findNotBlock();
-    const notBlockUsed = new Set(prev.names.keys((key) => prev.names.get(key)));
-
-    for (const _node of imports) {
-      const exportNode = _node.body.filter((n) => n.type === 'ExportNamedDeclaration');
-      for (const __node of exportNode) {
-        // 添加变量的判断
-        if (__node.declaration) {
-          if (__node.type === 'FunctionDeclaration') {
-            if (notBlockUsed.has(__node.declaration.id.name)) {
-              _node._scope.names.set(__node.declaration.id.name, true);
-            }
-          } else if (__node.type === 'VariableDeclaration') {
-            for (const declaration of __node.declarations) {
-              if (node.kind !== 'var') {
-                if (used.has(declaration.id.name)) {
-                  _node.scope.names.set(declaration.id.name, true);
+    if (cache.length !== len) {
+      for (const _node of cache) {
+        if (_node.type === 'ImportDeclaration') {
+          const _cache = cache;
+          cache = [];
+          const exportNodes = new Map();
+          _node.body.forEach((n) => {
+            if (n.type === 'VariableDeclaration') {
+              declarations = n.declarations.filter((_n) => _node.exports.has(_n.id.name));
+              if (declarations.length > 0) {
+                for (const _n of declarations) {
+                  exportNodes.set(_n.id.name, n);
                 }
-              } else {
-                if (notBlockUsed.has(declaration.id.name)) {
-                  prev.names.set(declaration.id.name, true);
+              }
+            } else if (n.type === 'FunctionDeclaration') {
+              if (_node.exports.has(n.id.name)) {
+                exportNodes.set(n.id.name, n);
+              }
+            } else if (n.type === 'ExportNamedDeclaration') {
+              if (n.declaration) {
+                if (n.declaration.type === 'VariableDeclaration') {
+                  declarations = n.declaration.declarations.filter((_n) => _node.exports.has(_n.id.name));
+                  if (declarations.length > 0) {
+                    for (const _n of declarations) {
+                      exportNodes.set(_n.id.name, n);
+                    }
+                  }
+                } else if (n.declaration.type === 'FunctionDeclaration') {
+                  if (_node.exports.has(n.declaration.id.name)) {
+                    exportNodes.set(n.declaration.id.name, n);
+                  }
                 }
               }
             }
-          }
-        } else {
+          });
 
+          _node.exports.forEach((name) => {
+            if (node._scope.names.get(name)) {
+              if (_node._scope.names.has(name)) {
+                _node._scope.names.set(name, true);
+              }
+            }
+          });
+          findDependencies(_node);
+          cache = _cache;
+        } else if (_node.type === 'FunctionDeclaration') {
+          findDependencies(_node);
+        } else if (_node.type === 'VariableDeclaration') {
+          findDependencies(_node);
         }
       }
     }
-  }
-  for (const attribute in node) {
-    if ((node.type === 'VariableDeclarator' || node.type === 'FunctionDeclaration') && attribute === 'id') {
-      continue;
-    }
-    if (attribute === 'property') {
-      continue;
-    }
-    if (node.type === 'ImportDefaultSpecifier') {
-      continue;
-    }
+    cache.length = len;
+  } else {
+    for (const attribute in node) {
+      if ((node.type === 'VariableDeclarator' || node.type === 'FunctionDeclaration') && attribute === 'id') {
+        continue;
+      }
+      if (attribute === 'property') {
+        continue;
+      }
+      if (node.type === 'ImportDefaultSpecifier') {
+        continue;
+      }
 
-    if (node[attribute] && typeof node[attribute] === 'object' && !/^_/.test(attribute)) {
-      if (Array.isArray(node[attribute])) {
-        for (const _node of node[attribute]) {
-          findDependencies(_node, dependencies);
+      if (node[attribute] && typeof node[attribute] === 'object' && !/^_/.test(attribute)) {
+        if (Array.isArray(node[attribute])) {
+          for (const _node of node[attribute]) {
+            findDependencies(_node);
+          }
+        } else {
+          findDependencies(node[attribute]);
         }
-      } else {
-        findDependencies(node[attribute], dependencies);
       }
     }
   }
 }
 
-const dependencies = new Set();
-findDependencies(modules, dependencies);
+findDependencies(modules);
 
 function build(node) {
   if (node._scope) {
@@ -219,67 +259,72 @@ function build(node) {
         const notBlockUsed = new Set(Array.from(prev.names.keys()).filter((key) => prev.names.get(key)));
         node.declarations = node.declarations.filter((variable) => notBlockUsed.has(variable.id.name));
       } else {
-        const used = new Set(node._scope.names.keys((key) => node._scope.names.get(key)));
+        const used = new Set(Array.from(node._scope.parent.names.keys()).filter((key) => node._scope.parent.names.get(key)));
         node.declarations = node.declarations.filter((variable) => used.has(variable.id.name));
       }
     } else if (node.type === 'FunctionDeclaration') {
       const prev = node._scope.findNotBlock();
       const notBlockUsed = new Set(Array.from(prev.names.keys()).filter((key) => prev.names.get(key)));
-      node.body = notBlockUsed.has(node.id.name) ? node.body : [];
+      node.body = notBlockUsed.has(node.id.name) ? node.body : null;
     }
 
     for (const attribute in node) {
       if (node[attribute] && typeof node[attribute] === 'object' && !/^_/.test(attribute)) {
         if (Array.isArray(node[attribute])) {
           for (const _node of node[attribute]) {
-            build(_node, dependencies);
+            build(_node);
           }
         } else {
-          build(node[attribute], dependencies);
+          build(node[attribute]);
         }
       }
     }
   }
 }
 
+debugger;
+
 build(modules);
 
 debugger;
 
-const code = new MagicString('');
+const bundle = new MagicString('');
+const importMap = new Set();
 
-function transform(modules) {
+function transform(modules, code) {
   (Array.isArray(modules) ? modules : [modules]).forEach((module) => {
     if (module.type === 'VariableDeclaration') {
-      code.append(`${module.kind} `);
-      for (let i = 0; i < module.declarations.length; ++ i) {
-        const declaration = module.declarations[i];
-        transform(declaration.id);
-        code.append('=');
-        transform(declaration.init);
-        code.append(';');
+      if (module.declarations.length > 0) {
+        code.append(`${module.kind} `);
+        for (let i = 0; i < module.declarations.length; ++ i) {
+          const declaration = module.declarations[i];
+          transform(declaration.id, code);
+          code.append('=');
+          transform(declaration.init, code);
+          code.append(';');
+        }
       }
     } else if (module.type === 'ExpressionStatement') {
-      transform(module.expression);
+      transform(module.expression, code);
       code.append(';');
     } else if (module.type === 'BinaryExpression') {
       if (module.left.body) {
-        transform(module.left.body);
+        transform(module.left.body, code);
       } else {
-        transform(module.left);
+        transform(module.left, code);
         code.append(module.operator);
-        transform(module.right);
+        transform(module.right, code);
       }
     } else if (module.type === 'CallExpression') {
       if (module.callee.name) {
         code.append(`${module.callee.name}`);
       } else {
-        transform(module.callee);
+        transform(module.callee, code);
       }
       code.append('(');
       if (module.arguments) {
         for (let i = 0; i < module.arguments.length; ++ i) {
-          transform(module.arguments[i]);
+          transform(module.arguments[i], code);
           if (i < module.arguments.length -1) {
             code.append(',');
           }
@@ -287,27 +332,134 @@ function transform(modules) {
       }
       code.append(')');
     } else if (module.type === 'MemberExpression') {
-      transform(module.object);
+      transform(module.object, code);
       code.append('.');
-      transform(module.property);
-    } else if (module.type === 'FunctionDeclaration') {
-      code.append(`function ${module.id.name}(`);
-      transform(module.params);
+      transform(module.property, code);
+    } else if (module.type === 'TryStatement') {
+      code.append('try');
+      if (module.block) {
+        transform(module.block, code);
+      }
+      if (module.handler) {
+        transform(module.handler, code);
+      }
+      if (module.finalizer) {
+        code.append('finally');
+        transform(module.finalizer, code);
+      }
+    } else if (module.type === 'CatchClause') {
+      code.append(`catch(${module.param ? module.param.name : ''})`);
+      if (module.body) {
+        transform(module.body, code);
+      }
+    } else if (module.type === 'FunctionExpression') {
+      code.append('function(');
+      transform(module.params, code);
       code.append(')');
-      transform(module.body);
+      transform(module.body, code);
+    } else if (module.type === 'ArrowFunctionExpression') {
+      code.append('(');
+      transform(module.params, code);
+      code.append(')=>');
+      transform(module.body, code);
+    } else if (module.type === 'FunctionDeclaration') {
+      if (module.body) {
+        code.append(`function ${module.id.name}(`);
+        transform(module.params, code);
+        code.append(')');
+        transform(module.body, code);
+      }
     } else if (module.type === 'BlockStatement') {
       code.append('{');
-      transform(module.body);
-      code.append('};');
+      transform(module.body, code);
+      code.append('}');
+    } else if (module.type === 'IfStatement') {
+      if (module.test) {
+        code.append('if(');
+        transform(module.test, code);
+        code.append(')');
+      }
+      if (module.consequent) {
+        transform(module.consequent, code);
+      }
+      if (module.alternate) {
+        if (module.alternate.type === 'IfStatement') {
+          code.append('else ');
+          transform(module.alternate, code);
+        } else {
+          code.append('else');
+          transform(module.alternate, code);
+        }
+      }
+    } else if (module.type === 'SwitchStatement') {
+      code.append('switch(');
+      transform(module.discriminant, code);
+      code.append('){');
+      for (const caseNode of module.cases) {
+        transform(caseNode, code);
+      }
+      code.append('}');
+    } else if (module.type === 'SwitchCase') {
+      if (module.test) {
+        code.append(`case ${module.test.raw}:`);
+      } else {
+        code.append(`default:`);
+      }
+      for (const consequent of module.consequent) {
+        transform(consequent, code);
+      }
+    } else if (module.type === 'BreakStatement') {
+      code.append('break;');
+    } else if (module.type === 'ForStatement') {
+      code.append('for(');
+      transform(module.init, code);
+      transform(module.test, code);
+      code.append(';');
+      transform(module.update, code);
+      code.append(')');
+      transform(module.body, code);
+    } else if (module.type === 'WhileStatement') {
+      code.append('while(');
+      transform(module.test, code);
+      code.append(')');
+      transform(module.body, code);
+    } else if (module.type === 'DoWhileStatement') {
+      code.append('do');
+      transform(module.body, code);
+      code.append('while(');
+      transform(module.test, code);
+      code.append(');');
     } else if (module.type === 'ReturnStatement') {
       code.append(`return `);
-      transform(module.argument);
+      transform(module.argument, code);
       code.append(';');
+    } else if (module.type === 'SequenceExpression') {
+      for (let i = 0; i < module.expressions.length; ++ i) {
+        transform(module.expressions[i], code);
+        if (i < module.expressions.length - 1) {
+          code.append(',');
+        }
+      }
+    } else if (module.type === 'UpdateExpression') {
+      if (module.prefix) {
+        code.append(module.operator);
+      }
+      transform(module.argument, code);
+      if (!module.prefix) {
+        code.append(module.operator);
+      }
     } else if (module.type === 'Identifier') {
       code.append(module.name);
     } else if (module.type === 'Literal') {
-      code.append(String(module.value));
+      code.append(module.raw);
     } else if (module.type === 'ImportDeclaration') {
+      if (importMap.has(module)) {
+        return;
+      } else {
+        importMap.add(module);
+      }
+      const used = new Set(Array.from(module._scope.names.keys()).filter((key) => module._scope.names.get(key)));
+
       let defaultExport = '';
       const exports = [];
       for (const specifier of module.specifiers) {
@@ -318,40 +470,44 @@ function transform(modules) {
         }
       }
 
+      const vars = Array.from(module.exports).filter((name) => used.has(name)).join(',');
+
+      const _bundle = new MagicString('');
       if (defaultExport) {
-        code.append(`var ${defaultExport} = (function () {`);
-        transform(module.body);
-        code.append(`return {${module.exports.join(',')}}})();`);
-        if (exports) {
-          code.append(`var {${exports.join(',')}}=${defaultExport};`);
+        _bundle.append(`var ${defaultExport} = (function(){`);
+        transform(module.body, _bundle);
+        _bundle.append(`return ${defaultExport}})();`);
+        if (exports.length) {
+          _bundle.append(`var {${vars}}=${defaultExport};`);
         }
       } else {
-        code.append(`var {${exports.join(',')}}=(function () {`);
-        transform(module.body);
-        code.append(`return {${module.exports.join(',')}}})();`);
+        _bundle.append(`var {${vars}}=(function(){`);
+        transform(module.body, _bundle);
+        _bundle.append(`return {${vars}}})();`);
       }
+      code.appendLeft(0, _bundle.toString());
     } else if (module.type === 'ExportNamedDeclaration') {
       if (module.declaration) {
-        transform(module.declaration);
+        transform(module.declaration, code);
       }
       if (Array.isArray(module.body)) {
-        transform(module.body);
+        transform(module.body, code);
       }
     } else {
       if (Array.isArray(module.body)) {
-        transform(module.body);
+        transform(module.body, code);
       }
     }
   });
 }
 
-transform(modules.body);
+transform(modules.body, bundle);
 
-const map = code.generateMap({
+const map = bundle.generateMap({
   source: 'source.js',
   file: 'source.js.map',
   includeContent: true,
 });
 
-fs.writeFileSync('./source.js', code.toString());
+fs.writeFileSync('./source.js', bundle.toString());
 fs.writeFileSync('./source.js.map', map.toString());
