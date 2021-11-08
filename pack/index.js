@@ -26,7 +26,7 @@ class Scope {
   }
 
   addDeps(name, node) {
-    if (this.names.has(name)) {
+    if (this.deps.has(name)) {
       const deps = this.deps.get(name);
       deps.push(node);
     } else {
@@ -159,6 +159,9 @@ function setScope(node, parent) {
       node._scope.add(param.name, true);
     }
   }
+  if (node.type === 'ExportDefaultDeclaration') {
+    node._scope.add(parent.defaultExport, true);
+  }
 
   for (const attribute in node) {
     if (node[attribute] && typeof node[attribute] === 'object' && !/^_/.test(attribute)) {
@@ -197,9 +200,10 @@ function findDependencies(node) {
           const _cache = cache;
           cache = [];
           const exportNodes = new Map();
+
           _node.body.forEach((n) => {
             if (n.type === 'VariableDeclaration') {
-              declarations = n.declarations.filter((_n) => _node.exports.has(_n.id.name));
+              const declarations = n.declarations.filter((_n) => _node.exports.has(_n.id.name));
               if (declarations.length > 0) {
                 for (const _n of declarations) {
                   exportNodes.set(_n.id.name, n);
@@ -245,13 +249,14 @@ function findDependencies(node) {
                 node._scope.deps.set(_name, []);
               }
             }
+            debugger;
             if (node._scope.names.get(name)) {
-              if (_node._scope.names.has(name)) {
+              if (_node.exports.has(name)) {
                 _node._scope.names.set(name, true);
               }
+              findDependencies(_node.exportNodes.get(name));
             }
           });
-          findDependencies(_node);
           cache = _cache;
         } else if (_node.type === 'FunctionDeclaration') {
           findDependencies(_node);
@@ -290,8 +295,6 @@ function findDependencies(node) {
 }
 
 findDependencies(modules);
-
-debugger;
 
 function build(node) {
   if (node._scope) {

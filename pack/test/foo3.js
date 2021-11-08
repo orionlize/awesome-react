@@ -1,3 +1,7 @@
 import base from './base';
 
-export {base};
+function a() {
+  base();
+}
+
+export {a};
