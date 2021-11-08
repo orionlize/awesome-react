@@ -1,5 +1,3 @@
-// 'use strict';
-
 const {JSDOM} = require('jsdom');
 const window = (new JSDOM(``, {pretendToBeVisual: true})).window;
 
@@ -7,12 +5,15 @@ const fs = require('fs');
 const esprima = require('esprima');
 const path = require('path');
 const {default: MagicString} = require('magic-string');
+
 class Scope {
   constructor(options = {}) {
     this.parent = options.parent;
     this.depth = this.parent ? this.parent.depth + 1 : 0;
-    this.names = options.params || new Map();
+    this.names = new Map();
     this.isBlockScope = options.block;
+    this.deps = new Map();
+    this.alias = new Map();
   }
 
   add(name, isBlockDeclaration) {
@@ -20,16 +21,32 @@ class Scope {
       this.parent.add(name, isBlockDeclaration);
     } else {
       this.names.set(name, false);
+      this.deps.set(name, []);
     }
   }
 
-  contain(name) {
+  addDeps(name, node) {
     if (this.names.has(name)) {
-      this.names.set(name, true);
-      return name;
+      const deps = this.deps.get(name);
+      deps.push(node);
     } else {
       if (this.parent) {
-        return this.parent.contain(name);
+        this.parent.addDeps(name, node);
+      }
+    }
+  }
+
+  addAlias(name, other, module) {
+    this.alias.set(name, [module, other]);
+  }
+
+  contain(name, node) {
+    if (this.names.has(name)) {
+      this.names.set(name, true);
+      return true;
+    } else {
+      if (this.parent) {
+        return this.parent.contain(name, node);
       } else {
         return Reflect.has(window, name) || Reflect.has(globalThis, name);
       }
@@ -59,10 +76,9 @@ function parseModule(input, config) {
 }
 
 const modules = parseModule(content);
-
 const moduleMap = new Map();
 
-function recursionModule(node, parent, exports) {
+function recursionModule(node, parent) {
   setScope(node, parent);
   if (node.type === 'ImportDeclaration') {
     const relative = node.source.value;
@@ -72,7 +88,13 @@ function recursionModule(node, parent, exports) {
       moduleMap.set(relative, node);
     }
     node.body = [];
-    node.exports = new Set();
+    node.exports = new Set(node.specifiers.map((specifier) => {
+      if (!specifier.imported) {
+        node.defaultExport = specifier.local.name;
+      }
+      return specifier.imported ? specifier.imported.name : specifier.local.name;
+    }));
+    node.imports = [];
 
     const _modules = parseModule(fs.readFileSync(path.resolve(__dirname, 'test', `${relative}.js`), {
       encoding: 'utf-8',
@@ -84,21 +106,14 @@ function recursionModule(node, parent, exports) {
       node.body.push(ret);
     }
 
-    return node;
-  } else {
-    if (node.type === 'ExportNamedDeclaration') {
-      if (node.declaration) {
-        exports.add(node.declaration.id.name);
-        recursionModule(node.declaration, parent, exports);
-      }
-      if (Array.isArray(node.specifiers)) {
-        for (const specifier of node.specifiers) {
-          exports.add(specifier.exported.name);
-        }
+    for (const importNode of node.body) {
+      if (importNode.type === 'ImportDeclaration') {
+        node.imports = node.imports.concat(importNode.specifiers.map((specifier) => specifier.imported ? specifier.imported.name : specifier.local.name));
       }
     }
-    return node;
+    node.imports = new Set(node.imports);
   }
+  return node;
 }
 
 scope = new Scope({
@@ -122,6 +137,7 @@ function setScope(node, parent) {
   if (node.type === 'VariableDeclaration') {
     for (const declaration of node.declarations) {
       parent._scope.add(declaration.id.name, node.kind !== 'var');
+      parent._scope.addDeps(declaration.id.name, declaration);
     }
   }
   if (node.type === 'FunctionDeclaration') {
@@ -133,6 +149,9 @@ function setScope(node, parent) {
   if (node.type === 'ImportDeclaration') {
     for (const specifier of node.specifiers) {
       parent._scope.add(specifier.local.name, true);
+      if (specifier.imported && specifier.imported.name !== specifier.local.name) {
+        parent._scope.addAlias(specifier.imported.name, specifier.local.name, node.source);
+      }
     }
   }
   if (node.type === 'ArrowFunctionExpression') {
@@ -157,7 +176,8 @@ function setScope(node, parent) {
 let cache = [];
 function findDependencies(node) {
   if (node.type === 'Identifier') {
-    node._scope.parent.contain(node.name);
+    node._scope.parent.contain(node.name, node);
+    node._scope.parent.addDeps(node.name, node);
     return;
   }
 
@@ -204,10 +224,27 @@ function findDependencies(node) {
                   }
                 }
               }
+            } else if (n.type === 'ExportDefaultDeclaration') {
+              n.name = _node.defaultExport;
+              exportNodes.set(_node.defaultExport, n.declaration);
             }
           });
 
+          _node.exportNodes = exportNodes;
           _node.exports.forEach((name) => {
+            if (node._scope.names.has(name)) {
+              const alias = node._scope.alias.get(name);
+              let _name = name;
+              if (alias) {
+                if (alias[0] === _node.source) {
+                  _name = alias[1];
+                }
+              }
+              _node._scope.deps.set(name, _node._scope.deps.get(name).concat(node._scope.deps.get(_name)));
+              if (name !== _name) {
+                node._scope.deps.set(_name, []);
+              }
+            }
             if (node._scope.names.get(name)) {
               if (_node._scope.names.has(name)) {
                 _node._scope.names.set(name, true);
@@ -226,23 +263,26 @@ function findDependencies(node) {
     cache.length = len;
   } else {
     for (const attribute in node) {
-      if ((node.type === 'VariableDeclarator' || node.type === 'FunctionDeclaration') && attribute === 'id') {
-        continue;
-      }
-      if (attribute === 'property') {
-        continue;
-      }
-      if (node.type === 'ImportDefaultSpecifier') {
-        continue;
-      }
+      if (Reflect.has(node, attribute)) {
+        if ((node.type === 'VariableDeclarator' || node.type === 'FunctionDeclaration') && attribute === 'id') {
+          node._scope.parent.addDeps(node['id'].name, node['id']);
+          continue;
+        }
+        if (attribute === 'property') {
+          continue;
+        }
+        if (node.type === 'ImportDefaultSpecifier') {
+          continue;
+        }
 
-      if (node[attribute] && typeof node[attribute] === 'object' && !/^_/.test(attribute)) {
-        if (Array.isArray(node[attribute])) {
-          for (const _node of node[attribute]) {
-            findDependencies(_node);
+        if (node[attribute] && typeof node[attribute] === 'object' && !/^_/.test(attribute)) {
+          if (Array.isArray(node[attribute])) {
+            for (const _node of node[attribute]) {
+              findDependencies(_node);
+            }
+          } else {
+            findDependencies(node[attribute]);
           }
-        } else {
-          findDependencies(node[attribute]);
         }
       }
     }
@@ -250,6 +290,8 @@ function findDependencies(node) {
 }
 
 findDependencies(modules);
+
+debugger;
 
 function build(node) {
   if (node._scope) {
@@ -282,14 +324,11 @@ function build(node) {
   }
 }
 
-debugger;
-
 build(modules);
-
-debugger;
 
 const bundle = new MagicString('');
 const importMap = new Set();
+const importVariableMap = new Set();
 
 function transform(modules, code) {
   (Array.isArray(modules) ? modules : [modules]).forEach((module) => {
@@ -460,30 +499,36 @@ function transform(modules, code) {
       }
       const used = new Set(Array.from(module._scope.names.keys()).filter((key) => module._scope.names.get(key)));
 
-      let defaultExport = '';
-      const exports = [];
-      for (const specifier of module.specifiers) {
-        if (specifier.type === 'ImportDefaultSpecifier') {
-          defaultExport = specifier.local.name;
-        } else {
-          exports.push(specifier.imported.name);
+      const vars = Array.from(module.exports).filter((name) => used.has(name) && !module.imports.has(name));
+
+      if (vars.length) {
+        for (let i = 0; i < vars.length; ++ i) {
+          const variable = vars[i];
+          if (importVariableMap.has(variable)) {
+            let index = 1;
+            let newName = `${variable}$${index}`;
+            while (importVariableMap.has(newName)) {
+              ++ index;
+              newName = `${variable}$${index}`;
+            }
+            vars[i] = newName;
+            const deps = module._scope.deps.get(variable);
+            for (const dep of deps) {
+              dep.name = newName;
+            }
+            importVariableMap.add(newName);
+          } else {
+            importVariableMap.add(variable);
+          }
         }
       }
-
-      const vars = Array.from(module.exports).filter((name) => used.has(name)).join(',');
-
       const _bundle = new MagicString('');
-      if (defaultExport) {
-        _bundle.append(`var ${defaultExport} = (function(){`);
-        transform(module.body, _bundle);
-        _bundle.append(`return ${defaultExport}})();`);
-        if (exports.length) {
-          _bundle.append(`var {${vars}}=${defaultExport};`);
-        }
-      } else {
-        _bundle.append(`var {${vars}}=(function(){`);
-        transform(module.body, _bundle);
-        _bundle.append(`return {${vars}}})();`);
+      if (vars.length) {
+        _bundle.append(`var {${vars.join(',')}}=(function(){`);
+      }
+      transform(module.body, _bundle);
+      if (vars.length) {
+        _bundle.append(`return {${vars.join(',')}}})();`);
       }
       code.appendLeft(0, _bundle.toString());
     } else if (module.type === 'ExportNamedDeclaration') {
@@ -493,6 +538,10 @@ function transform(modules, code) {
       if (Array.isArray(module.body)) {
         transform(module.body, code);
       }
+    } else if (module.type === 'ExportDefaultDeclaration') {
+      // code.append(`const ${module.name}=`);
+      // transform(module.declaration, code);
+      // code.append(';');
     } else {
       if (Array.isArray(module.body)) {
         transform(module.body, code);
@@ -509,5 +558,5 @@ const map = bundle.generateMap({
   includeContent: true,
 });
 
-fs.writeFileSync('./source.js', bundle.toString());
+fs.writeFileSync('./source.js', '\'use strict\';' + bundle.toString());
 fs.writeFileSync('./source.js.map', map.toString());

@@ -10,3 +10,5 @@ const foo2 = function() {
 export {
   foo2,
 };
+
+export default base;

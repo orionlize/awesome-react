@@ -1,8 +1,11 @@
-import {foo, test} from './foo';
-import {foo2} from './foo2';
+// import a, {foo, test} from './foo';
+// import base, {foo2} from './foo2';
 
-const abc = 5;
+// console.log(a, base);
 
 // test();
-console.log(foo2() + 5);
-console.log(foo());
+// console.log(foo2() + 5);
+// console.log(foo());
+
+import {base} from './foo3';
+console.log(base);

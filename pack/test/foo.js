@@ -59,3 +59,5 @@ export function foo() {
   hello();
   return a;
 }
+
+export default base;
