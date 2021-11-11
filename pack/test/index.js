@@ -1,11 +1,8 @@
-import a, {foo, test} from './foo';
-import base, {foo2} from './foo2';
+// import {base} from './foo';
+// import {base as base2} from './foo2';
 
-// console.log(a, base);
+import a from './default';
 
-// test();
-// console.log(foo2() + 5);
-// console.log(foo());
+console.log(a);
 
-// import {a} from './foo3';
-console.log(a, base);
+// console.log(base, base2);

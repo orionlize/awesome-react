@@ -1,3 +1,9 @@
-const base = 100;
+let base = 100;
 
-export default base;
+base = (function add() {
+  return base + 100;
+})();
+
+export {
+  base,
+};

@@ -1,1 +1,5 @@
-'use strict';var {a}=(function(){var a=base;return {a}})();console.log(a,base);
+'use strict'; const {base}=(function() {
+  let base=100; base=function() {
+    return base+100;
+  }(); return {base};
+})(); console.log(base, base);

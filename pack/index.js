@@ -88,30 +88,82 @@ function recursionModule(node, parent) {
       moduleMap.set(relative, node);
     }
     node.body = [];
-    node.exports = new Set(node.specifiers.map((specifier) => {
+    node._exports = new Set(node.specifiers.map((specifier) => {
       if (!specifier.imported) {
-        node.defaultExport = specifier.local.name;
+        if (!node._defaultExport) {
+          node._defaultExport = new Set();
+        }
+        node._defaultExport.add(specifier.local.name);
       }
       return specifier.imported ? specifier.imported.name : specifier.local.name;
     }));
-    node.imports = [];
+    node._imports = [];
 
     const _modules = parseModule(fs.readFileSync(path.resolve(__dirname, 'test', `${relative}.js`), {
       encoding: 'utf-8',
     })).body;
 
+    let defaultExport = '';
     for (let i = 0; i < _modules.length; ++ i) {
       const _node = _modules[i];
-      const ret = recursionModule(_node, node, node.exports);
+      const ret = recursionModule(_node, node, node._exports);
       node.body.push(ret);
+      if (ret.type === 'ExportDefaultDeclaration') {
+        if (ret.declaration.type === 'Identifier') {
+          defaultExport = ret.declaration.name;
+        }
+      }
     }
+
+    const exportNodes = new Map();
+
+    node.body.forEach((n) => {
+      if (n.type === 'VariableDeclaration') {
+        const declarations = n.declarations.filter((_n) => node._exports.has(_n.id.name) || defaultExport === _n.id.name);
+        if (declarations.length > 0) {
+          for (const _n of declarations) {
+            exportNodes.set(_n.id.name, n);
+          }
+        }
+      } else if (n.type === 'FunctionDeclaration') {
+        if (node._exports.has(n.id.name) || defaultExport === _n.id.name) {
+          exportNodes.set(n.id.name, n);
+        }
+      } else if (n.type === 'ExportNamedDeclaration') {
+        if (n.declaration) {
+          if (n.declaration.type === 'VariableDeclaration') {
+            declarations = n.declaration.declarations.filter((_n) => node._exports.has(_n.id.name));
+            if (declarations.length > 0) {
+              for (const _n of declarations) {
+                exportNodes.set(_n.id.name, n);
+              }
+            }
+          } else if (n.declaration.type === 'FunctionDeclaration') {
+            if (node._exports.has(n.declaration.id.name)) {
+              exportNodes.set(n.declaration.id.name, n);
+            }
+          }
+        }
+      } else if (n.type === 'ImportDeclaration') {
+        n._exports.forEach((name) => {
+          if (node._exports.has(name)) {
+            exportNodes.set(name, n);
+          }
+        });
+      }
+    });
+
+    node._exportNodes = exportNodes;
+    node._default = exportNodes.get(defaultExport);
+
+    debugger;
 
     for (const importNode of node.body) {
       if (importNode.type === 'ImportDeclaration') {
-        node.imports = node.imports.concat(importNode.specifiers.map((specifier) => specifier.imported ? specifier.imported.name : specifier.local.name));
+        node._imports = node._imports.concat(importNode.specifiers.map((specifier) => specifier.imported ? specifier.imported.name : specifier.local.name));
       }
     }
-    node.imports = new Set(node.imports);
+    node._imports = new Set(node._imports);
   }
   return node;
 }
@@ -160,7 +212,7 @@ function setScope(node, parent) {
     }
   }
   if (node.type === 'ExportDefaultDeclaration') {
-    node._scope.add(parent.defaultExport, true);
+    node._scope.add(parent._defaultExport, true);
   }
 
   for (const attribute in node) {
@@ -199,43 +251,7 @@ function findDependencies(node) {
         if (_node.type === 'ImportDeclaration') {
           const _cache = cache;
           cache = [];
-          const exportNodes = new Map();
-
-          _node.body.forEach((n) => {
-            if (n.type === 'VariableDeclaration') {
-              const declarations = n.declarations.filter((_n) => _node.exports.has(_n.id.name));
-              if (declarations.length > 0) {
-                for (const _n of declarations) {
-                  exportNodes.set(_n.id.name, n);
-                }
-              }
-            } else if (n.type === 'FunctionDeclaration') {
-              if (_node.exports.has(n.id.name)) {
-                exportNodes.set(n.id.name, n);
-              }
-            } else if (n.type === 'ExportNamedDeclaration') {
-              if (n.declaration) {
-                if (n.declaration.type === 'VariableDeclaration') {
-                  declarations = n.declaration.declarations.filter((_n) => _node.exports.has(_n.id.name));
-                  if (declarations.length > 0) {
-                    for (const _n of declarations) {
-                      exportNodes.set(_n.id.name, n);
-                    }
-                  }
-                } else if (n.declaration.type === 'FunctionDeclaration') {
-                  if (_node.exports.has(n.declaration.id.name)) {
-                    exportNodes.set(n.declaration.id.name, n);
-                  }
-                }
-              }
-            } else if (n.type === 'ExportDefaultDeclaration') {
-              n.name = _node.defaultExport;
-              exportNodes.set(_node.defaultExport, n.declaration);
-            }
-          });
-
-          _node.exportNodes = exportNodes;
-          _node.exports.forEach((name) => {
+          _node._exports.forEach((name) => {
             if (node._scope.names.has(name)) {
               const alias = node._scope.alias.get(name);
               let _name = name;
@@ -244,17 +260,23 @@ function findDependencies(node) {
                   _name = alias[1];
                 }
               }
-              _node._scope.deps.set(name, _node._scope.deps.get(name).concat(node._scope.deps.get(_name)));
+              // if (_node._defaultExport.has(name)) {
+
+              // }
+              const deps = node._scope.deps.get(_name);
+              deps.forEach((dep) => {
+                dep.name = name;
+              });
+              _node._scope.deps.set(name, _node._scope.deps.get(name).concat(deps));
               if (name !== _name) {
                 node._scope.deps.set(_name, []);
               }
             }
-            debugger;
             if (node._scope.names.get(name)) {
-              if (_node.exports.has(name)) {
+              if (_node._exports.has(name)) {
                 _node._scope.names.set(name, true);
               }
-              findDependencies(_node.exportNodes.get(name));
+              findDependencies(_node._exportNodes.get(name));
             }
           });
           cache = _cache;
@@ -294,6 +316,7 @@ function findDependencies(node) {
   }
 }
 
+debugger;
 findDependencies(modules);
 
 function build(node) {
@@ -373,6 +396,10 @@ function transform(modules, code) {
         }
       }
       code.append(')');
+    } else if (module.type === 'AssignmentExpression') {
+      transform(module.left, code);
+      code.append(module.operator);
+      transform(module.right, code);
     } else if (module.type === 'MemberExpression') {
       transform(module.object, code);
       code.append('.');
@@ -407,7 +434,14 @@ function transform(modules, code) {
     } else if (module.type === 'FunctionDeclaration') {
       if (module.body) {
         code.append(`function ${module.id.name}(`);
-        transform(module.params, code);
+        if (module.params) {
+          for (let i = 0; i < module.params.length; ++ i) {
+            transform(module.params[i], code);
+            if (i < module.params.length -1) {
+              code.append(',');
+            }
+          }
+        }
         code.append(')');
         transform(module.body, code);
       }
@@ -502,7 +536,7 @@ function transform(modules, code) {
       }
       const used = new Set(Array.from(module._scope.names.keys()).filter((key) => module._scope.names.get(key)));
 
-      const vars = Array.from(module.exports).filter((name) => used.has(name) && !module.imports.has(name));
+      const vars = Array.from(module._exports).filter((name) => used.has(name) && !module._imports.has(name));
 
       if (vars.length) {
         for (let i = 0; i < vars.length; ++ i) {
@@ -525,6 +559,7 @@ function transform(modules, code) {
           }
         }
       }
+
       const _bundle = new MagicString('');
       if (vars.length) {
         _bundle.append(`var {${vars.join(',')}}=(function(){`);
@@ -541,15 +576,16 @@ function transform(modules, code) {
       if (Array.isArray(module.body)) {
         transform(module.body, code);
       }
-    } else if (module.type === 'ExportDefaultDeclaration') {
-      // code.append(`const ${module.name}=`);
-      // transform(module.declaration, code);
-      // code.append(';');
     } else {
       if (Array.isArray(module.body)) {
         transform(module.body, code);
       }
     }
+    // else if (module.type === 'ExportDefaultDeclaration') {
+    // code.append(`const ${module.name}=`);
+    // transform(module.declaration, code);
+    // code.append(';');
+    // }
   });
 }
 

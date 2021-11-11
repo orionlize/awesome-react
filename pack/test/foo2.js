@@ -1,14 +1,16 @@
 import base from './base';
 
-const a = base;
+// const a = base;
 
-// 待处理 FunctionExpression 表达式
-const foo2 = function() {
-  return a;
-};
+// // 待处理 FunctionExpression 表达式
+// const foo2 = function() {
+//   return a;
+// };
+
+// export {
+//   foo2,
+// };
 
 export {
-  foo2,
+  base,
 };
-
-export default base;
