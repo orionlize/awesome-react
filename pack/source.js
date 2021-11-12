@@ -1,5 +1,9 @@
-'use strict'; const {base}=(function() {
-  let base=100; base=function() {
-    return base+100;
-  }(); return {base};
-})(); console.log(base, base);
+'use strict'; const {a}=(function() {
+  function a() {
+    return 100;
+  } return {a};
+})(); const {b}=(function() {
+  function b() {
+    return 200;
+  } return {b};
+})(); console.log(a(), b());

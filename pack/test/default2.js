@@ -1,6 +1,5 @@
-
 function base() {
-  return 100;
+  return 200;
 }
 
 export default base;

@@ -56,9 +56,9 @@ function observer<T>(store: {[key: string]: Context<T>}) {
   };
 }
 
-function observable(target: Object, varible: string) {
-  let value = Reflect.get(target, varible);
-  Object.defineProperty(target, varible, {
+function observable(target: Object, variable: string) {
+  let value = Reflect.get(target, variable);
+  Object.defineProperty(target, variable, {
     set: function(_value: any) {
       if (value !== _value) {
         value = _value;
@@ -73,10 +73,10 @@ function observable(target: Object, varible: string) {
   });
 }
 
-function computed(target: Object, varible: string) {
-  const getFunc = Reflect.get(target, varible);
+function computed(target: Object, variable: string) {
+  const getFunc = Reflect.get(target, variable);
   let oldValue: any = null;
-  Object.defineProperty(target, varible, {
+  Object.defineProperty(target, variable, {
     get() {
       const newValue = getFunc();
       if (newValue !== oldValue) {

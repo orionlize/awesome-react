@@ -6,31 +6,32 @@ import uglify from '@lopatnov/rollup-plugin-uglify';
 import hotreload from './hot/index';
 import clean from './clean/index';
 
-export default [{
-  input: './src/index.tsx',
-  preserveEntrySignatures: 'strict',
-  output: {
-    dir: './build',
-    format: 'es',
-    sourcemap: true,
-  },
-  external: ['Immutable'],
+export default [
+  // {
+  //   input: './src/index.tsx',
+  //   preserveEntrySignatures: 'strict',
+  //   output: {
+  //     dir: './build',
+  //     format: 'es',
+  //     sourcemap: true,
+  //   },
+  //   external: ['Immutable'],
 
-  plugins: [
-    babel(),
-    eslint({
-      include: ['src/**/*.ts'],
-      exclude: ['node_modules/**'],
-    }),
-    typescript(),
-    resolve(),
-    // uglify(),
-    hotreload({
-      port: 4000,
-    }),
-    clean(),
-  ],
-},
+  //   plugins: [
+  //     babel(),
+  //     eslint({
+  //       include: ['src/**/*.ts'],
+  //       exclude: ['node_modules/**'],
+  //     }),
+  //     typescript(),
+  //     resolve(),
+  //     // uglify(),
+  //     hotreload({
+  //       port: 4000,
+  //     }),
+  //     clean(),
+  //   ],
+  // },
   // {
   //   input: './hot/emit.js',
   //   output: {
@@ -40,9 +41,17 @@ export default [{
   //     exports: 'default',
   //   },
 
-//   plugins: [
-//     babel(),
-//     uglify(),
-//   ],
-// },
+  //   plugins: [
+  //     babel(),
+  //     uglify(),
+  //   ],
+  // },
+  {
+    input: './src/js/index.js',
+    output: {
+      file: './src/js/ouput.js',
+      format: 'cjs',
+      sourcemap: false,
+    },
+  },
 ];

@@ -79,13 +79,13 @@ const modules = parseModule(content);
 const moduleMap = new Map();
 
 function recursionModule(node, parent) {
-  setScope(node, parent);
   if (node.type === 'ImportDeclaration') {
     const relative = node.source.value;
     if (moduleMap.has(relative)) {
       return moduleMap.get(relative);
     } else {
       moduleMap.set(relative, node);
+      setScope(node, parent);
     }
     node.body = [];
     node._exports = new Set(node.specifiers.map((specifier) => {
@@ -126,8 +126,8 @@ function recursionModule(node, parent) {
           }
         }
       } else if (n.type === 'FunctionDeclaration') {
-        if (node._exports.has(n.id.name) || defaultExport === _n.id.name) {
-          exportNodes.set(n.id.name, n);
+        if (node._exports.has(n.id.name) || defaultExport === n.id.name) {
+          exportNodes.set(n.id.name, n.id);
         }
       } else if (n.type === 'ExportNamedDeclaration') {
         if (n.declaration) {
@@ -140,7 +140,7 @@ function recursionModule(node, parent) {
             }
           } else if (n.declaration.type === 'FunctionDeclaration') {
             if (node._exports.has(n.declaration.id.name)) {
-              exportNodes.set(n.declaration.id.name, n);
+              exportNodes.set(n.declaration.id.name, n.declaration.id);
             }
           }
         }
@@ -155,8 +155,10 @@ function recursionModule(node, parent) {
 
     node._exportNodes = exportNodes;
     node._default = exportNodes.get(defaultExport);
-
-    debugger;
+    if (node._default) {
+      node._default._name = node._default.name;
+      node._default.name = node._defaultExport.entries().next().value[1];
+    }
 
     for (const importNode of node.body) {
       if (importNode.type === 'ImportDeclaration') {
@@ -164,6 +166,8 @@ function recursionModule(node, parent) {
       }
     }
     node._imports = new Set(node._imports);
+  } else {
+    setScope(node, parent);
   }
   return node;
 }
@@ -189,7 +193,7 @@ function setScope(node, parent) {
   if (node.type === 'VariableDeclaration') {
     for (const declaration of node.declarations) {
       parent._scope.add(declaration.id.name, node.kind !== 'var');
-      parent._scope.addDeps(declaration.id.name, declaration);
+      parent._scope.addDeps(declaration.id.name, declaration.id);
     }
   }
   if (node.type === 'FunctionDeclaration') {
@@ -260,24 +264,41 @@ function findDependencies(node) {
                   _name = alias[1];
                 }
               }
-              // if (_node._defaultExport.has(name)) {
 
-              // }
-              const deps = node._scope.deps.get(_name);
-              deps.forEach((dep) => {
-                dep.name = name;
-              });
-              _node._scope.deps.set(name, _node._scope.deps.get(name).concat(deps));
-              if (name !== _name) {
-                node._scope.deps.set(_name, []);
-              }
-            }
-            if (node._scope.names.get(name)) {
-              if (_node._exports.has(name)) {
+              if (_node._defaultExport && _node._defaultExport.has(name)) {
+                if (_node._default.type === 'VariableDeclaration') {
+                  _name = _node._default.declarations[0].id.name;
+                } else if (_node._default.type === 'FunctionDeclaration') {
+                  _name = _node._default.id.name;
+                }
+                const deps = node._scope.deps.get(name);
+                const scopeName = _node._defaultExport.entries().next().value[1];
+                deps.forEach((dep) => {
+                  dep.name = scopeName;
+                });
+                _node._scope.deps.set(_node._default._name, _node._scope.deps.get(_node._default._name).concat(deps));
+                if (name !== _name) {
+                  node._scope.deps.set(scopeName, []);
+                }
+                _node._scope.names.set(scopeName, true);
+                findDependencies(_node._exportNodes.get(_node._default._name));
+              } else {
+                const deps = node._scope.deps.get(_name);
+                deps.forEach((dep) => {
+                  dep.name = name;
+                });
+                debugger;
+                _node._scope.deps.set(name, _node._scope.deps.get(name).concat(deps));
+                if (name !== _name) {
+                  node._scope.deps.set(name, []);
+                }
                 _node._scope.names.set(name, true);
+                findDependencies(_node._exportNodes.get(name));
               }
-              findDependencies(_node._exportNodes.get(name));
             }
+
+            // if (_node._exports.has(name)) {
+            // }
           });
           cache = _cache;
         } else if (_node.type === 'FunctionDeclaration') {
@@ -316,7 +337,6 @@ function findDependencies(node) {
   }
 }
 
-debugger;
 findDependencies(modules);
 
 function build(node) {
