@@ -1,4 +1,4 @@
-import base from './base';
+import {base} from './base';
 
 // const a = base;
 
@@ -11,6 +11,10 @@ import base from './base';
 //   foo2,
 // };
 
+import b from './default2';
+
 export {
   base,
 };
+
+export default b;

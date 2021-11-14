@@ -62,8 +62,15 @@
 
 // export default base;
 
-import base from './base';
+// import a from './default';
+// import {base} from './base';
+
+const base = 0;
 
 export {
   base,
 };
+
+const a = 100;
+
+export default a;
