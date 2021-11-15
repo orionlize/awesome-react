@@ -1,5 +1,7 @@
 import base from './default';
 
-export default (function() {
-  return base + 100;
+const n = (function() {
+  return base() + 100;
 })();
+
+export default n;

@@ -126,6 +126,13 @@ function recursionModule(node, parent) {
         for (const specifier of module.specifiers) {
           exports.push(specifier.exported.name);
         }
+        if (module.declaration) {
+          if (module.declaration.type === 'VariableDeclaration') {
+            exports.push(module.declaration.declarations[0].id.name);
+          } else if (module.declaration.type === 'FunctionDeclaration') {
+            exports.push(module.declaration.id.name);
+          }
+        }
       }
     });
     node.specifiers.forEach((specifier) => {
@@ -194,6 +201,7 @@ function recursionModule(node, parent) {
         return _;
       })()) :
       _default;
+      exportNodes.set(defaultExport, _default);
       defaultMap.set(relative, _default);
       if (_default && !_default._name) {
         _default._name = _default.name;
@@ -250,8 +258,14 @@ function setScope(node, parent) {
       node._scope.add(param.name, true);
     }
   }
+  if (node.type === 'Identifier') {
+    node._scope.addDeps(node.name, node);
+  }
 
   for (const attribute in node) {
+    if (attribute === 'property') {
+      continue;
+    }
     if (node[attribute] && typeof node[attribute] === 'object' && !/^_/.test(attribute)) {
       if (Array.isArray(node[attribute])) {
         for (const _node of node[attribute]) {
@@ -288,12 +302,11 @@ function findDependencies(node) {
           const _cache = cache;
           cache = [];
 
-          let isNameSpace = false;
-          const defaultNode = _node.specifiers.find((specifier) => {
+          let defaultNode = null;
+          _node.specifiers.forEach((specifier) => {
             if (specifier.type === 'ImportDefaultSpecifier') {
-              return true;
+              defaultNode = specifier;
             } else if (specifier.type === 'ImportNamespaceSpecifier') {
-              isNameSpace = true;
               _node._scope._exportNodes.forEach((value, key) => {
                 let cur = value._scope;
                 while (!cur.names.has(key)) {
@@ -303,9 +316,6 @@ function findDependencies(node) {
               });
             }
           });
-          if (isNameSpace) {
-            continue;
-          }
 
           if (defaultNode) {
             const identifier = defaultMap.get(_node.source.value);
@@ -626,10 +636,13 @@ function transform(modules, code) {
       }
 
       const used = [];
+      const defaultExport = defaultMap.get(module.source.value);
       Array.from(module._scope.names.keys()).forEach((key) => {
-        if (module._scope._exportNodes.get(key) === defaultMap.get(module.source.value)) {
-          used.push(module._scope._exportNodes.get(key).name);
-        } else if (module._scope.names.get(key)) {
+        if (module._scope._exportNodes.get(key) === defaultExport) {
+          if (defaultExport) {
+            used.push(defaultExport.name);
+          }
+        } else if (module._scope._exportNodes.get(key)) {
           used.push(key);
         }
       });
@@ -646,11 +659,18 @@ function transform(modules, code) {
               newName = `${variable}$${index}`;
             }
             vars[i] = newName;
-            const deps = module._scope.deps.get(variable);
-            for (const dep of deps) {
-              dep.name = newName;
+            let deps = null;
+            if (defaultExport && variable === defaultExport.name) {
+              deps = module._scope.deps.get(defaultExport._name);
+            } else {
+              deps = module._scope.deps.get(variable);
             }
-            importVariableMap.add(newName);
+            if (deps) {
+              for (const dep of deps) {
+                dep.name = newName;
+              }
+              importVariableMap.add(newName);
+            }
           } else {
             importVariableMap.add(variable);
           }
@@ -665,14 +685,14 @@ function transform(modules, code) {
       if (vars.length) {
         _bundle.append(`return{${vars.join(',')}}})();`);
       }
-      const defaultExport = module.specifiers.find((specifier) => specifier.type === 'ImportNamespaceSpecifier');
-      if (defaultExport) {
+      const defaultSpecifier = module.specifiers.find((specifier) => specifier.type === 'ImportNamespaceSpecifier');
+      if (defaultSpecifier) {
         let namespace = '';
         module._scope._exportNodes.forEach((value, key) => {
           namespace += `${value._name ? 'default' : key}:${value._name || value.name},`;
         });
 
-        _bundle.append(`const ${defaultExport.local.name}=Object.freeze({${namespace}});`);
+        _bundle.append(`const ${defaultSpecifier.local.name}=Object.freeze({${namespace}});`);
       }
       code.appendLeft(0, _bundle.toString());
     } else if (module.type === 'ExportNamedDeclaration') {
