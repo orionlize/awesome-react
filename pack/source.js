@@ -1,11 +1,1 @@
-'use strict'; let {base, a}=(function() {
-  const base=0; const a=100; return {base, a};
-})(); const {base$1}=(function() {
-  const base$1=100; base=function() {
-    return base+100;
-  }(); return {base$1};
-})(); const {b}=(function() {
-  function b() {
-    return 200;
-  } return {b};
-})(); console.log(a(), base, b(), base$1, c());
+'use strict';var {base,a}=(function(){const base=0;const a=100;return{base,a}})();const all=Object.freeze({base:base,default:a,});var {base$1}=(function(){let base$1=100;base$1=function(){return base$1+100;}();return{base$1}})();var {b}=(function(){function b(){return 200;}return{b}})();var {base$2}=(function(){function base$2(){return 100;}return{base$2}})();var {c}=(function(){const c=function(){return base$2+100;}();return{c}})();console.log(all);console.log(b(),base$1,c);

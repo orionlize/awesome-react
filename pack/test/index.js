@@ -1,7 +1,6 @@
-import a, {base} from './foo';
-import b, {base as base2} from './foo2';
+import * as all from './foo';
+import b, {base} from './foo2';
 import c from './top';
+console.log(all);
 
-// console.log(a(), b(), c());
-
-console.log(a(), base, b(), base2, c());
+console.log(b(), base, c);

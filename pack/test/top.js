@@ -1,3 +1,5 @@
-import {base} from './base';
+import base from './default';
 
-export default base;
+export default (function() {
+  return base + 100;
+})();

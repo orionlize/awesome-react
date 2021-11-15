@@ -77,18 +77,16 @@ function parseModule(input, config) {
 
 const modules = parseModule(content);
 const moduleMap = new Map();
-const defualtMap = new Map();
+const defaultMap = new Map();
 
 function recursionModule(node, parent) {
+  setScope(node, parent);
   if (node.type === 'ImportDeclaration') {
     const relative = node.source.value;
     if (moduleMap.has(relative)) {
       return moduleMap.get(relative);
     } else {
-      node.specifiers.map((specifier) => {
-        moduleMap.set(relative, node);
-        setScope(node, parent);
-      });
+      moduleMap.set(relative, node);
     }
     node.body = [];
 
@@ -97,16 +95,30 @@ function recursionModule(node, parent) {
     })).body;
 
     let defaultExport = '';
-    for (let i = 0; i < _modules.length; ++ i) {
-      const _node = _modules[i];
-      const ret = recursionModule(_node, node, node._exports);
+    let rename = '';
+    _modules.forEach((_node) =>{
+      const ret = recursionModule(_node, node);
       node.body.push(ret);
       if (ret.type === 'ExportDefaultDeclaration') {
         if (ret.declaration.type === 'Identifier') {
           defaultExport = ret.declaration.name;
+        } else {
+          const declaration = {
+            type: 'VariableDeclaration',
+            declarations: [{
+              id: {
+                type: 'Identifier',
+                name: 'default',
+              },
+              init: ret.declaration,
+            }],
+            kind: 'const',
+          };
+          node.body.push(recursionModule(declaration, node));
+          defaultExport = 'default';
         }
       }
-    }
+    });
 
     const exports = [];
     _modules.forEach((module) => {
@@ -119,6 +131,7 @@ function recursionModule(node, parent) {
     node.specifiers.forEach((specifier) => {
       if (specifier.type === 'ImportDefaultSpecifier') {
         exports.push(specifier.local.name);
+        rename = specifier.local.name;
       }
     });
     node._exports = new Set(exports);
@@ -163,7 +176,7 @@ function recursionModule(node, parent) {
           exportNodes.set(defaultExport, n);
         } else {
           n._exports.forEach((name) => {
-            if (node._exports.has(name) || (n._defaultExport && n._defaultExport.has(name))) {
+            if (node._exports.has(name)) {
               exportNodes.set(name, n);
             }
           });
@@ -171,16 +184,21 @@ function recursionModule(node, parent) {
       }
     });
 
-    node._exportNodes = exportNodes;
+    node._scope._exportNodes = exportNodes;
     if (defaultExport) {
-      const _default = exportNodes.get(defaultExport);
-      defualtMap.set(relative, _default.type === 'ImportDeclaration' ?
-      (defualtMap.get(_default.source.value) || _default._exportNodes.get(defaultExport)) :
-      _default);
-    }
-    if (node._default && !node._default._name) {
-      node._default._name = node._default.name;
-      node._default.name = node._defaultExport.entries().next().value[1];
+      let _default = exportNodes.get(defaultExport);
+      _default = _default.type === 'ImportDeclaration' ?
+      (defaultMap.get(_default.source.value) || (() => {
+        const _ = _default._scope._exportNodes.get(defaultExport);
+        _._name = _.name;
+        return _;
+      })()) :
+      _default;
+      defaultMap.set(relative, _default);
+      if (_default && !_default._name) {
+        _default._name = _default.name;
+        _default.name = rename || _default.name;
+      }
     }
   } else {
     setScope(node, parent);
@@ -188,7 +206,7 @@ function recursionModule(node, parent) {
   return node;
 }
 
-scope = new Scope({
+const scope = new Scope({
   block: false,
 });
 
@@ -214,6 +232,7 @@ function setScope(node, parent) {
   }
   if (node.type === 'FunctionDeclaration') {
     parent._scope.add(node.id.name, false);
+    parent._scope.addDeps(node.id.name, node.id);
     for (const param of node.params) {
       node._scope.add(param.name, true);
     }
@@ -230,9 +249,6 @@ function setScope(node, parent) {
     for (const param of node.params) {
       node._scope.add(param.name, true);
     }
-  }
-  if (node.type === 'ExportDefaultDeclaration') {
-    node._scope.add(parent._defaultExport, true);
   }
 
   for (const attribute in node) {
@@ -271,8 +287,50 @@ function findDependencies(node) {
         if (_node.type === 'ImportDeclaration') {
           const _cache = cache;
           cache = [];
+
+          let isNameSpace = false;
+          const defaultNode = _node.specifiers.find((specifier) => {
+            if (specifier.type === 'ImportDefaultSpecifier') {
+              return true;
+            } else if (specifier.type === 'ImportNamespaceSpecifier') {
+              isNameSpace = true;
+              _node._scope._exportNodes.forEach((value, key) => {
+                let cur = value._scope;
+                while (!cur.names.has(key)) {
+                  cur = cur.parent;
+                }
+                cur.names.set(key, true);
+              });
+            }
+          });
+          if (isNameSpace) {
+            continue;
+          }
+
+          if (defaultNode) {
+            const identifier = defaultMap.get(_node.source.value);
+            let _name = identifier.name;
+            if (identifier.name === identifier._name) {
+              _name = defaultNode.local.name;
+            }
+
+            const deps = node._scope.deps.get(_name);
+            deps.forEach((dep) => {
+              dep.name = identifier.name;
+            });
+
+            let _scope = identifier._scope;
+            while (!_scope.names.has(identifier._name)) {
+              _scope = _scope.parent;
+            }
+
+            _scope.deps.set(identifier._name, _scope.deps.get(identifier._name).concat(deps));
+            node._scope.deps.set(identifier.name, []);
+            _scope.names.set(identifier._name, true);
+          }
+
           _node._exports.forEach((name) => {
-            if (node._scope.names.has(name)) {
+            if (!defaultNode || (defaultNode && name !== defaultNode.local.name)) {
               const alias = node._scope.alias.get(name);
               let _name = name;
               if (alias) {
@@ -280,50 +338,29 @@ function findDependencies(node) {
                   _name = alias[1];
                 }
               }
-
-              if (_node._defaultExport && _node._defaultExport.has(name)) {
-                if (_node._default && _node._default.type === 'VariableDeclaration') {
-                  _name = _node._default.declarations[0].id.name;
-                } else if (_node._default && _node._default.type === 'FunctionDeclaration') {
-                  _name = _node._default.id.name;
-                }
-
-                const deps = node._scope.deps.get(name);
-                // deps.forEach((dep) => {
-                //   if (!dep._name) {
-                //     dep.name = cur._default.name;
-                //   }
-                // });
-
-                debugger;
-                _node._scope.deps.set(_node._default._name, _node._scope.deps.get(_node._default._name).concat(deps));
-                if (name !== _name) {
-                  node._scope.deps.set(_node._default.name, []);
-                }
-                _node._scope.names.set(_node._default._name, true);
-                findDependencies(_node._exportNodes.get(_node._default._name));
-              } else {
+              if (node._scope.names.has(_name)) {
                 const deps = node._scope.deps.get(_name);
-                // deps.forEach((dep) => {
-                //   if (!dep._name) {
-                //     dep.name = name;
-                //   }
-                // });
-                let cur = _node;
-                while (cur._exportNodes && cur._exportNodes.has(name) && cur._exportNodes.get(name).type === 'ImportDeclaration') {
-                  cur = cur._exportNodes.get(name);
+                deps.forEach((dep) => {
+                  if (!dep._name) {
+                    dep.name = name;
+                  }
+                });
+
+                let cur = _node._scope;
+                while (!cur.names.has(_name)) {
+                  cur = cur.parent;
                 }
-                if (cur._scope.deps.has(name)) {
-                  cur._scope.deps.set(name, cur._scope.deps.get(name).concat(deps));
+                if (cur.deps.has(name)) {
+                  cur.deps.set(name, cur.deps.get(name).concat(deps));
                   if (name !== _name) {
                     node._scope.deps.set(name, []);
                   }
-                  cur._scope.names.set(name, true);
-                  findDependencies(cur._exportNodes.get(name));
+                  cur.names.set(name, true);
                 }
               }
             }
           });
+          findDependencies(_node);
           cache = _cache;
         } else if (_node.type === 'FunctionDeclaration') {
           findDependencies(_node);
@@ -360,8 +397,6 @@ function findDependencies(node) {
     }
   }
 }
-
-debugger;
 
 findDependencies(modules);
 
@@ -589,12 +624,17 @@ function transform(modules, code) {
       } else {
         importMap.add(module);
       }
-      const used = new Set(Array.from(module._scope.names.keys()).filter((key) => module._scope.names.get(key)));
 
-      const vars = Array.from(module._exports).filter(
-          (name) => (module._default ? module._default.type !== 'ImportDeclaration' : true) && (used.has(name) ||
-          (module._defaultExport && module._default && module._defaultExport.has(name) &&
-          used.has(module._default._name))) && !module._imports.has(name));
+      const used = [];
+      Array.from(module._scope.names.keys()).forEach((key) => {
+        if (module._scope._exportNodes.get(key) === defaultMap.get(module.source.value)) {
+          used.push(module._scope._exportNodes.get(key).name);
+        } else if (module._scope.names.get(key)) {
+          used.push(key);
+        }
+      });
+
+      const vars = used.filter((name) => !module._imports.has(name));
       if (vars.length) {
         for (let i = 0; i < vars.length; ++ i) {
           const variable = vars[i];
@@ -623,7 +663,16 @@ function transform(modules, code) {
       }
       transform(module.body, _bundle);
       if (vars.length) {
-        _bundle.append(`return {${vars.join(',')}}})();`);
+        _bundle.append(`return{${vars.join(',')}}})();`);
+      }
+      const defaultExport = module.specifiers.find((specifier) => specifier.type === 'ImportNamespaceSpecifier');
+      if (defaultExport) {
+        let namespace = '';
+        module._scope._exportNodes.forEach((value, key) => {
+          namespace += `${value._name ? 'default' : key}:${value._name || value.name},`;
+        });
+
+        _bundle.append(`const ${defaultExport.local.name}=Object.freeze({${namespace}});`);
       }
       code.appendLeft(0, _bundle.toString());
     } else if (module.type === 'ExportNamedDeclaration') {
