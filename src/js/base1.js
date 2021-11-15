@@ -1,3 +1,5 @@
-import b from './module';
 
-export default b;
+
+export default function() {
+  console.log(100);
+};
