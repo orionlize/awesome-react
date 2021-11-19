@@ -2,7 +2,6 @@ const fs = require('fs');
 const esprima = require('esprima');
 const path = require('path');
 const Scope = require('./scope');
-const {nodeModules} = require('./paths');
 
 class Filter {
   constructor(entry, loaders = [], parseConfig = {}) {
@@ -15,25 +14,21 @@ class Filter {
     this.parseConfig = parseConfig;
   }
 
-  parseModule(url, name) {
-    try {
-      fs.accessSync(url);
-    } catch (error) {
-      // url = path.resolve(nodeModules, name, 'dist', 'es', 'rollup.js');
-      debugger;
-    }
-
+  parseModule(url, name, node) {
     let content = '';
     try {
-      content = fs.readFileSync(url, {
-        encoding: 'utf-8',
-      });
-    } catch (error) {
+      fs.accessSync(url);
+      try {
+        content = fs.readFileSync(url, {
+          encoding: 'utf-8',
+        });
+      } catch (error) {
 
+      }
+    } catch (error) {
     }
 
     if (content) {
-      debugger;
       this.loaders.forEach((loader) => {
         if (loader.test.test(url)) {
           content = loader.loader(content, url);
@@ -42,6 +37,134 @@ class Filter {
       return esprima.parseModule(content, this.parseConfig, function(node, meta) {
       });
     } else {
+      const body = [];
+      const defaultNode = node.specifiers.find((specifier) => specifier.type === esprima.Syntax.ImportDefaultSpecifier);
+      if (defaultNode) {
+        body.push({
+          type: esprima.Syntax.VariableDeclaration,
+          declarations: [{
+            type: esprima.Syntax.VariableDeclarator,
+            id: {
+              type: esprima.Syntax.Identifier,
+              name: defaultNode.local.name,
+            },
+            init: {
+              type: esprima.Syntax.CallExpression,
+              callee: {
+                type: esprima.Syntax.Identifier,
+                name: 'require',
+              },
+              arguments: [
+                {
+                  type: esprima.Syntax.Literal,
+                  value: name,
+                  raw: `\'${name}\'`,
+                },
+              ],
+            },
+          }],
+          kind: 'const',
+        });
+        body.push({
+          type: esprima.Syntax.ExportDefaultDeclaration,
+          declaration: {
+            type: esprima.Syntax.Identifier,
+            name: defaultNode.local.name,
+          },
+        });
+      }
+
+      const exportNodes = node.specifiers.
+          filter((specifier) => specifier.type !== esprima.Syntax.ImportDefaultSpecifier);
+      if (exportNodes) {
+        const properties = [];
+        exportNodes.forEach((specifier) => {
+          properties.push({
+            type: esprima.Syntax.Property,
+            key: {
+              type: esprima.Syntax.Identifier,
+              name: specifier.local.name,
+            },
+            value: {
+              type: esprima.Syntax.Identifier,
+              name: specifier.local.name,
+            },
+            kind: 'init',
+            computed: false,
+            method: false,
+            shorthand: true,
+          });
+        });
+        if (properties) {
+          if (defaultNode) {
+            body.push({
+              type: esprima.Syntax.VariableDeclaration,
+              declarations: [{
+                type: esprima.Syntax.VariableDeclarator,
+                id: {
+                  type: esprima.Syntax.ObjectPattern,
+                  properties,
+                },
+                init: {
+                  type: esprima.Syntax.Identifier,
+                  name: defaultNode.local.name,
+                },
+              }],
+              kind: 'const',
+            });
+          } else {
+            body.push({
+              type: esprima.Syntax.VariableDeclaration,
+              declarations: [{
+                type: esprima.Syntax.VariableDeclarator,
+                id: {
+                  type: esprima.Syntax.ObjectPattern,
+                  properties,
+                },
+                init: {
+                  type: esprima.Syntax.CallExpression,
+                  callee: {
+                    type: esprima.Syntax.Identifier,
+                    name: 'require',
+                  },
+                  arguments: [
+                    {
+                      type: esprima.Syntax.Literal,
+                      value: name,
+                      raw: `\'${name}\'`,
+                    },
+                  ],
+                },
+              }],
+              kind: 'const',
+            });
+          }
+
+          const specifiers = [];
+          exportNodes.forEach((specifier) => {
+            specifiers.push({
+              type: esprima.Syntax.ExportSpecifier,
+              exported: {
+                type: esprima.Syntax.Identifier,
+                name: specifier.local.name,
+              },
+              local: {
+                type: esprima.Syntax.Identifier,
+                name: specifier.local.name,
+              },
+            });
+          });
+          body.push({
+            type: esprima.Syntax.ExportNamedDeclaration,
+            declaration: null,
+            specifiers,
+          });
+        }
+      }
+
+      return {
+        body,
+      };
     }
   }
 
@@ -53,7 +176,13 @@ class Filter {
     if (node.type === 'VariableDeclaration') {
       for (const declaration of node.declarations) {
         parent._scope.add(declaration.id.name, node.kind !== 'var');
-        parent._scope.addDeps(declaration.id.name, declaration.id);
+        if (declaration.id.type === 'Identifier') {
+          parent._scope.addDeps(declaration.id.name, declaration.id);
+        } if (declaration.id.type === 'ObjectPattern') {
+          for (const property of declaration.id.properties) {
+            parent._scope.addDeps(declaration.id.name, property.key.name);
+          }
+        }
       }
     }
     if (node.type === 'FunctionDeclaration') {
@@ -107,7 +236,7 @@ class Filter {
       }
       node.body = [];
 
-      const _modules = this.parseModule(path.resolve(this.baseSrc, `${relative}.js`), relative).body;
+      const _modules = this.parseModule(path.resolve(this.baseSrc, `${relative}.js`), relative, node).body;
 
       let defaultExport = '';
       let rename = '';
@@ -168,10 +297,18 @@ class Filter {
 
       node.body.forEach((n) => {
         if (n.type === 'VariableDeclaration') {
-          const declarations = n.declarations.filter((_n) => node._exports.has(_n.id.name) || defaultExport === _n.id.name);
+          const declarations = n.declarations.filter((_n) => node._exports.has(_n.id.name) ||
+          defaultExport === _n.id.name ||
+          _n.id.type === 'ObjectPattern' );
           if (declarations.length > 0) {
             for (const _n of declarations) {
-              exportNodes.set(_n.id.name, _n.id);
+              if (_n.id.type === esprima.Syntax.Identifier) {
+                exportNodes.set(_n.id.name, _n.id);
+              } else if (_n.id.type === esprima.Syntax.ObjectPattern) {
+                for (const property of _n.id.properties) {
+                  exportNodes.set(property.key.name, property.key);
+                }
+              }
             }
           }
         } else if (n.type === 'FunctionDeclaration') {
@@ -413,7 +550,9 @@ class Filter {
 
     emitter.emit('treeShakingBegin', this, modules);
     this.findDependencies(modules);
+    debugger;
     this.build(modules);
+    debugger;
     emitter.emit('treeShakingEnd', this, modules);
 
     return {

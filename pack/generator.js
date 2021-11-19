@@ -20,6 +20,19 @@ class Generator {
             code.append(';');
           }
         }
+      } else if (module.type === 'ObjectPattern') {
+        code.append('{');
+        module.properties.forEach((property) => {
+          this._generate(property, code);
+          code.append(',');
+        });
+        code.append('}');
+      } else if (module.type === 'Property') {
+        code.append(module.key);
+        if (module.key.name !== module.value.name) {
+          code.append(':');
+          code.append(module.value);
+        }
       } else if (module.type === 'ExpressionStatement') {
         this._generate(module.expression, code);
         code.append(';');
