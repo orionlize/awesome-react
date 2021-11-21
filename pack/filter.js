@@ -83,11 +83,11 @@ class Filter {
             type: esprima.Syntax.Property,
             key: {
               type: esprima.Syntax.Identifier,
-              name: specifier.local.name,
+              name: specifier.imported.name,
             },
             value: {
               type: esprima.Syntax.Identifier,
-              name: specifier.local.name,
+              name: specifier.imported.name,
             },
             kind: 'init',
             computed: false,
@@ -146,7 +146,7 @@ class Filter {
               type: esprima.Syntax.ExportSpecifier,
               exported: {
                 type: esprima.Syntax.Identifier,
-                name: specifier.local.name,
+                name: specifier.imported.name,
               },
               local: {
                 type: esprima.Syntax.Identifier,
@@ -175,12 +175,18 @@ class Filter {
     });
     if (node.type === 'VariableDeclaration') {
       for (const declaration of node.declarations) {
-        parent._scope.add(declaration.id.name, node.kind !== 'var');
+        if (declaration.id.type === esprima.Syntax.Identifier) {
+          parent._scope.add(declaration.id.name, node.kind !== 'var');
+        } else {
+          for (const property of declaration.id.properties) {
+            parent._scope.add(property.key.name, node.kind !== 'var');
+          }
+        }
         if (declaration.id.type === 'Identifier') {
           parent._scope.addDeps(declaration.id.name, declaration.id);
         } if (declaration.id.type === 'ObjectPattern') {
           for (const property of declaration.id.properties) {
-            parent._scope.addDeps(declaration.id.name, property.key.name);
+            parent._scope.addDeps(property.key.name, property.key);
           }
         }
       }
@@ -410,6 +416,7 @@ class Filter {
               }
 
               const deps = node._scope.deps.get(_name);
+              debugger;
               deps.forEach((dep) => {
                 dep.name = identifier.name;
               });
@@ -502,7 +509,19 @@ class Filter {
           node.declarations = node.declarations.filter((variable) => notBlockUsed.has(variable.id._name || variable.id.name));
         } else {
           const used = new Set(Array.from(node._scope.parent.names.keys()).filter((key) => node._scope.parent.names.get(key)));
-          node.declarations = node.declarations.filter((variable) => used.has(variable.id._name || variable.id.name));
+          node.declarations = node.declarations.filter((variable) => {
+            if (variable.id.type === esprima.Syntax.Identifier) {
+              return used.has(variable.id._name || variable.id.name);
+            } else if (variable.id.type === esprima.Syntax.ObjectPattern) {
+              return variable.id.properties.some((property) => {
+                if (used.has(property.key.name)) {
+                  return true;
+                } else {
+                  return false;
+                }
+              });
+            }
+          });
         }
       } else if (node.type === 'FunctionDeclaration') {
         const prev = node._scope.findNotBlock();
@@ -550,9 +569,7 @@ class Filter {
 
     emitter.emit('treeShakingBegin', this, modules);
     this.findDependencies(modules);
-    debugger;
     this.build(modules);
-    debugger;
     emitter.emit('treeShakingEnd', this, modules);
 
     return {

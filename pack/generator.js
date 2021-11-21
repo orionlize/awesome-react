@@ -28,10 +28,10 @@ class Generator {
         });
         code.append('}');
       } else if (module.type === 'Property') {
-        code.append(module.key);
+        code.append(module.key.name);
         if (module.key.name !== module.value.name) {
           code.append(':');
-          code.append(module.value);
+          code.append(module.value.name);
         }
       } else if (module.type === 'ExpressionStatement') {
         this._generate(module.expression, code);

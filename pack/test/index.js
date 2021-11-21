@@ -1,7 +1,7 @@
-import all, {rollup} from 'rollup';
+import {rollup as rollup1} from 'rollup';
 import * as all from './foo';
-import b, {base} from './foo2';
+import d, {base} from './foo2';
 import c from './top';
 
-console.log(all, rollup);
-console.log(b(), base, c);
+console.log(rollup1);
+console.log(d(), base, c);
