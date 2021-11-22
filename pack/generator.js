@@ -203,6 +203,8 @@ class Generator {
 
         const used = [];
         const defaultExport = this.defaultMap.get(module.source.value);
+        debugger;
+
         Array.from(module._scope.names.keys()).forEach((key) => {
           if (module._scope._exportNodes.get(key) === defaultExport) {
             if (defaultExport) {

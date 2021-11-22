@@ -291,7 +291,14 @@ class Filter {
           rename = specifier.local.name;
         }
       });
-      node._exports = new Set(exports);
+      node._exports = new Set();
+      for (const _export of exports) {
+        let i = 0;
+        while (node._exports.has(i > 0 ? `${_export}$${i}` : _export)) {
+          ++ i;
+        }
+        node._exports.add(i > 0 ? `${_export}$${i}` : _export);
+      }
       node._imports = [];
       for (const importNode of node.body) {
         if (importNode.type === 'ImportDeclaration') {
@@ -305,13 +312,25 @@ class Filter {
         if (n.type === 'VariableDeclaration') {
           const declarations = n.declarations.filter((_n) => node._exports.has(_n.id.name) ||
           defaultExport === _n.id.name ||
-          _n.id.type === 'ObjectPattern' );
+          _n.id.type === 'ObjectPattern');
           if (declarations.length > 0) {
             for (const _n of declarations) {
               if (_n.id.type === esprima.Syntax.Identifier) {
+                let i = 0;
+                while (exportNodes.has(i > 0 ? `${_n.id.name}$${i}` : _n.id.name)) {
+                  ++ i;
+                }
+                _n.id._name = _n.id.name;
+                _n.id.name = i > 0 ? `${_n.id.name}$${i}` : _n.id.name;
                 exportNodes.set(_n.id.name, _n.id);
               } else if (_n.id.type === esprima.Syntax.ObjectPattern) {
                 for (const property of _n.id.properties) {
+                  let i = 0;
+                  while (exportNodes.has(i > 0 ? `${property.key.name}$${i}` : property.key.name)) {
+                    ++ i;
+                  }
+                  property.key._name = property.key.name;
+                  property.key.name = i > 0 ? `${property.key.name}$${i}` : property.key.name;
                   exportNodes.set(property.key.name, property.key);
                 }
               }
@@ -319,6 +338,12 @@ class Filter {
           }
         } else if (n.type === 'FunctionDeclaration') {
           if (node._exports.has(n.id.name) || defaultExport === n.id.name) {
+            let i = 0;
+            while (exportNodes.has(i > 0 ? `${n.id.name}$${i}` : n.id.name)) {
+              ++ i;
+            }
+            n.id._name = n.id.name;
+            n.id.name = i > 0 ? `${n.id.name}$${i}` : n.id.name;
             exportNodes.set(n.id.name, n.id);
           }
         } else if (n.type === 'ExportNamedDeclaration') {
@@ -327,28 +352,49 @@ class Filter {
               declarations = n.declaration.declarations.filter((_n) => node._exports.has(_n.id.name));
               if (declarations.length > 0) {
                 for (const _n of declarations) {
+                  let i = 0;
+                  while (exportNodes.has(i > 0 ? `${_n.id.name}$${i}` : _n.id.name)) {
+                    ++ i;
+                  }
+                  _n.id._name = _n.id.name;
+                  _n.id.name = i > 0 ? `${_n.id.name}$${i}` : _n.id.name;
                   exportNodes.set(_n.id.name, _n.id);
                 }
               }
             } else if (n.declaration.type === 'FunctionDeclaration') {
               if (node._exports.has(n.declaration.id.name)) {
+                let i = 0;
+                while (exportNodes.has(i > 0 ? `${n.declaration.id.name}$${i}` : n.declaration.id.name)) {
+                  ++ i;
+                }
+                n.declaration.id._name = n.declaration.id.name;
+                n.declaration.id.name = i > 0 ? `${n.declaration.id.name}$${i}` : n.declaration.id.name;
                 exportNodes.set(n.declaration.id.name, n.declaration.id);
               }
             }
           }
         } else if (n.type === 'ImportDeclaration') {
           if (n._exports.has(defaultExport)) {
-            exportNodes.set(defaultExport, n);
+            let i = 0;
+            while (exportNodes.has(i > 0 ? `${defaultExport}$${i}` : defaultExport)) {
+              ++ i;
+            }
+            exportNodes.set(i > 0 ? `${defaultExport}$${i}` : defaultExport, n);
           } else {
             n._exports.forEach((name) => {
               if (node._exports.has(name)) {
-                exportNodes.set(name, n);
+                let i = 0;
+                while (exportNodes.has(i > 0 ? `${name}$${i}` : name)) {
+                  ++ i;
+                }
+                exportNodes.set(i > 0 ? `${name}$${i}` : name, n);
               }
             });
           }
         }
       });
 
+      debugger;
       node._scope._exportNodes = exportNodes;
       if (defaultExport) {
         let _default = exportNodes.get(defaultExport);
@@ -359,11 +405,16 @@ class Filter {
           return _;
         })()) :
         _default;
+        let i = 0;
+        while (exportNodes.has(defaultExport)) {
+          ++ i;
+          defaultExport = `${defaultExport}$${i}`;
+        }
         exportNodes.set(defaultExport, _default);
         this.defaultMap.set(relative, _default);
         if (_default && !_default._name) {
           _default._name = _default.name;
-          _default.name = rename || _default.name;
+          _default.name = `${rename || _default.name}$${i}`;
         }
       }
     }
@@ -400,23 +451,27 @@ class Filter {
               } else if (specifier.type === 'ImportNamespaceSpecifier') {
                 _node._scope._exportNodes.forEach((value, key) => {
                   let cur = value._scope;
-                  while (!cur.names.has(key)) {
-                    cur = cur.parent;
+                  if (value.type === esprima.Syntax.ImportDeclaration) {
+                    value.specifiers.forEach((specifier) => {
+                      while (!cur.names.has(specifier.local.name)) {
+                        cur = cur.parent;
+                      }
+                      cur.names.set(specifier.local.name, true);
+                    });
+                  } else {
+                    while (!cur.names.has(value._name || value.name)) {
+                      cur = cur.parent;
+                    }
+                    cur.names.set(value._name, true);
                   }
-                  cur.names.set(key, true);
                 });
               }
             });
 
             if (defaultNode) {
               const identifier = this.defaultMap.get(_node.source.value);
-              let _name = identifier.name;
-              if (identifier.name === identifier._name) {
-                _name = defaultNode.local.name;
-              }
 
-              const deps = node._scope.deps.get(_name);
-              debugger;
+              const deps = node._scope.deps.get(defaultNode.local.name);
               deps.forEach((dep) => {
                 dep.name = identifier.name;
               });
@@ -427,12 +482,12 @@ class Filter {
               }
 
               _scope.deps.set(identifier._name, _scope.deps.get(identifier._name).concat(deps));
-              node._scope.deps.set(identifier.name, []);
-              _scope.names.set(identifier._name, true);
+              node._scope.deps.set(defaultNode.local.name, []);
+              _scope.names.set(identifier.name, true);
             }
 
             _node._exports.forEach((name) => {
-              if (!defaultNode || (defaultNode && name !== defaultNode.local.name)) {
+              if (!defaultNode || (defaultNode && (name !== defaultNode.local.name || node._scope.alias.get(name)))) {
                 const alias = node._scope.alias.get(name);
                 let _name = name;
                 if (alias) {

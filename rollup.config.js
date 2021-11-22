@@ -47,11 +47,10 @@ export default [
   //   ],
   // },
   {
-    input: './src/js/index.js',
+    input: './require/index.js',
     output: {
-      file: './src/js/ouput.js',
+      file: './require/demo.js',
       format: 'cjs',
-      sourcemap: false,
     },
   },
 ];
