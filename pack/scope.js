@@ -15,6 +15,13 @@ class Scope {
     if (!isBlockDeclaration && this.isBlockScope) {
       this.parent.add(name, isBlockDeclaration);
     } else {
+      if (this.names.has(name)) {
+        let i = 0;
+        while (this.names.has(i > 0 ? `${name}$${i}` : name)) {
+          ++ i;
+        }
+        name = `${name}$${i}`;
+      }
       this.names.set(name, false);
       this.deps.set(name, []);
     }

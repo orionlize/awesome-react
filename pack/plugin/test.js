@@ -4,8 +4,8 @@ class TestPlugin {
   }
 
   apply(pack) {
-    pack.emitter.addListener('parseEnd', (...args) => {
-      console.log(args);
+    pack.hooks.run.tap('test', () => {
+      console.log('run start!');
     });
   }
 }

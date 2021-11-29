@@ -7,41 +7,29 @@ if (!configs) {
   return -1;
 }
 
-const Filter = require('./filter');
-const Generator = require('./generator');
-const Emitter = require('./emitter');
-const {writeFileSync} = require('fs');
-class Pack {
-  constructor(config) {
-    this.config = config;
-    this.emitter = new Emitter();
-    config.plugins.forEach((plugin) => {
-      plugin.apply(this);
-    });
+const Compiler = require('./compiler');
+class JSPack {
+  constructor(options) {
+    const packOptions = this._mergeOptions(options);
+    const compiler = new Compiler(packOptions);
+    return compiler;
   }
 
-  parse() {
-    const {
-      modules,
-      defaultMap,
-    } = new Filter(this.config.input, this.config.loaders, {
-      jsx: this.config.jsx,
-    }).filter(this.emitter);
-    const bundle = new Generator(defaultMap).generate(modules, this.emitter);
-    const fileName = /\/(.+)$/.exec(this.config.input)[1];
-    const map = bundle.generateMap({
-      source: `${fileName}`,
-      file: `${fileName}.map`,
-      includeContent: true,
-    });
-
-    this.emitter.emit('beforeWriting', bundle);
-    writeFileSync(this.config.output, '\'use strict\';' + bundle.toString());
-    writeFileSync(`${this.config.output}.map`, map.toString());
-    this.emitter.emit('afterWriting');
+  _mergeOptions(options) {
+    const argvs = process.argv.slice(3);
+    for (const argv of argvs) {
+      const [key, value] = argv.split('=');
+      if (key && value) {
+        options[key] = value;
+      }
+    }
+    return options;
   }
 }
 
-for (const config of configs) {
-  new Pack(config).parse();
+for (const options of configs) {
+  const pack = new JSPack(options);
+  pack.run();
 }
+
+module.exports = JSPack;
