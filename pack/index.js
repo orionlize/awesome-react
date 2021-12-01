@@ -1,8 +1,8 @@
 const configPath = process.argv[2];
-const configs = require(configPath);
+const options = require(configPath);
 
-if (!configs) {
-  console.error('pack config is null!');
+if (!options) {
+  console.error('pack options is null!');
 
   return -1;
 }
@@ -27,9 +27,5 @@ class JSPack {
   }
 }
 
-for (const options of configs) {
-  const pack = new JSPack(options);
-  pack.run();
-}
-
-module.exports = JSPack;
+const pack = new JSPack(options);
+pack.run();

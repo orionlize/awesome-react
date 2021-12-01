@@ -46,7 +46,7 @@ export function test() {
   }
 }
 
-export function foo() {
+const foo = function() {
   const cc = 100;
   const cb = (cc) => {
     console.log(cc);
@@ -58,6 +58,10 @@ export function foo() {
 
   hello();
   return a;
-}
+};
+
+export {
+  foo,
+};
 
 export default base;

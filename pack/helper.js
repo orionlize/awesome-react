@@ -3,11 +3,20 @@ const path = require('path');
 
 /**
  * 返回入口文件路径
- * @param {*} option 打包配置
+ * @param {String} input 入口路径
  * @return {String} 入口路径
  */
-function getEntry(option) {
-  return path.resolve(process.cwd(), option.input);
+function getEntry(input) {
+  return path.resolve(process.cwd(), input);
+}
+
+/**
+ * 获取输出目录
+ * @param {String} output 输出相对路径名
+ * @return {String} 输出绝对路径名
+ */
+function getOutput(output) {
+  return path.resolve(process.cwd(), output);
 }
 
 /**
@@ -36,7 +45,23 @@ function tryExpression(
   );
 }
 
+/**
+ * 创建清空打包目录
+ * @param {*} path 打包根目录
+ */
+function mkdir(path) {
+  if (fs.existsSync(path)) {
+    fs.rmSync(path, {
+      recursive: true,
+      force: true,
+    });
+  }
+  fs.mkdirSync(path);
+}
+
 module.exports = {
   getEntry,
+  getOutput,
   tryExpression,
+  mkdir,
 };
