@@ -1,11 +1,11 @@
 const {SyncHook} = require('tapable');
-const {parseSync, transformFromAstSync} = require('@babel/core');
-const {default: traverse, NodePath} = require('@babel/traverse');
+const {parseSync, transformFromAstSync, NodePath} = require('@babel/core');
+const {default: traverse} = require('@babel/traverse');
 const types = require('@babel/types');
 
 const fs = require('fs');
 const path = require('path');
-const {getEntry, tryExpression, mkdir, getOutput, isExportNode} = require('./helper');
+const {getEntry, tryExpression, mkdir, getOutput, isExportNode, deleteReferences} = require('./helper');
 
 class Compiler {
   constructor(options) {
@@ -170,40 +170,22 @@ class Compiler {
     }
   }
 
-  _dealEntry() {
-    this.entries.forEach((entry) => {
-      this._treeShaking(entry);
-    });
-    this.modules.forEach((module) => {
-      traverse(module.ast.node, {
-        /**
-         *
-         * @param {NodePath} nodePath
-         */
-        VariableDeclaration: (nodePath) => {
-          if (Array.isArray(nodePath.node.declarations)) {
-            const declarations = nodePath.node.declarations.filter((declaration) => {
-              if (types.isObjectPattern(declaration.id)) {
-                for (const property of declaration.id.properties) {
-                  const referencePaths = nodePath.scope.getBinding(property.key.name).referencePaths;
-                  if (referencePaths.filter(
-                      (node) => !isExportNode(node.container) && !isExportNode(node.node)).length) {
-                    return true;
-                  } else {
-                    referencePaths.forEach((node) => {
-                      if (!isExportNode(node)) {
-                        node.parentPath.remove();
-                      } else {
-                        node.remove();
-                      }
-                    });
-                    return false;
-                  }
-                }
-              } else if (types.isArrayPattern(declaration.id)) {
-                return true;
-              } else if (types.isIdentifier(declaration.id)) {
-                const referencePaths = nodePath.scope.getBinding(declaration.id.name).referencePaths;
+  /**
+   *
+   * @param {NodePath} module
+   */
+  _traverse(module) {
+    traverse(module.ast.node, {
+      /**
+       *
+       * @param {NodePath} nodePath
+       */
+      VariableDeclaration: (nodePath) => {
+        if (Array.isArray(nodePath.node.declarations)) {
+          const declarations = nodePath.node.declarations.filter((declaration) => {
+            if (types.isObjectPattern(declaration.id)) {
+              for (const property of declaration.id.properties) {
+                const referencePaths = nodePath.scope.getBinding(property.key.name).referencePaths;
                 if (referencePaths.filter(
                     (node) => !isExportNode(node.container) && !isExportNode(node.node)).length) {
                   return true;
@@ -215,36 +197,69 @@ class Compiler {
                       node.remove();
                     }
                   });
+                  nodePath.shouldStop = true;
                   return false;
                 }
               }
-            });
-            if (declarations.length) {
-              nodePath.node.declarations = declarations;
-            } else {
-              debugger;
-              nodePath.remove();
-            }
-          }
-        },
-        /**
-         *
-         * @param {NodePath} nodePath
-         */
-        FunctionDeclaration: (nodePath) => {
-          const referencePaths = nodePath.scope.getBinding(nodePath.node.id.name).referencePaths;
-          if (!referencePaths.filter((node) => !isExportNode(node.container) && !isExportNode(node.node)).length) {
-            referencePaths.forEach((node) => {
-              if (!isExportNode(node)) {
-                node.parentPath.remove();
+            } else if (types.isArrayPattern(declaration.id)) {
+              return true;
+            } else if (types.isIdentifier(declaration.id)) {
+              const referencePaths = nodePath.scope.getBinding(declaration.id.name).referencePaths;
+              if (referencePaths.filter(
+                  (node) => !isExportNode(node.container) && !isExportNode(node.node)).length) {
+                return true;
               } else {
-                node.remove();
+                referencePaths.forEach((node) => {
+                  if (!isExportNode(node)) {
+                    node.parentPath.remove();
+                  } else {
+                    node.remove();
+                  }
+                });
+                nodePath.shouldStop = true;
+                return false;
               }
-            });
+            }
+          });
+          if (declarations.length) {
+            nodePath.node.declarations = declarations;
+          } else {
+            deleteReferences(nodePath);
             nodePath.remove();
           }
-        },
-      });
+          if (nodePath.shouldStop) {
+            this._traverse(module);
+          }
+        }
+      },
+      /**
+       *
+       * @param {NodePath} nodePath
+       */
+      FunctionDeclaration: (nodePath) => {
+        const referencePaths = nodePath.scope.getBinding(nodePath.node.id.name).referencePaths;
+        if (!referencePaths.filter((node) => !isExportNode(node.container) && !isExportNode(node.node)).length) {
+          referencePaths.forEach((node) => {
+            if (!isExportNode(node)) {
+              node.parentPath.remove();
+            } else {
+              node.remove();
+            }
+          });
+          nodePath.shouldStop = true;
+          nodePath.remove();
+          this._traverse(module);
+        }
+      },
+    });
+  }
+
+  _dealEntry() {
+    this.entries.forEach((entry) => {
+      this._treeShaking(entry);
+    });
+    this.modules.forEach((module) => {
+      this._traverse(module);
       const {code} = transformFromAstSync(module.ast.node, module._source, {
         presets: [['@babel/preset-env', {
           'targets': {

@@ -1,4 +1,5 @@
 const {NodePath} = require('@babel/core');
+const {default: traverse} = require('@babel/traverse');
 const types = require('@babel/types');
 const fs = require('fs');
 const path = require('path');
@@ -61,6 +62,20 @@ function isExportNode(nodePath) {
 }
 
 /**
+ * 删除该节点下的引用
+ * @param {NodePath} nodePath
+ * @return {void}
+ */
+function deleteReferences(nodePath) {
+  traverse(nodePath.node, {
+    Identifier: (_nodePath) => {
+      debugger;
+      _nodePath.remove();
+    },
+  }, nodePath.scope, nodePath.state, nodePath);
+}
+
+/**
  * 创建清空打包目录
  * @param {*} path 打包根目录
  */
@@ -79,5 +94,6 @@ module.exports = {
   getOutput,
   tryExpression,
   isExportNode,
+  deleteReferences,
   mkdir,
 };
