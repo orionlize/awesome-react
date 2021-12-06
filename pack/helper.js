@@ -1,3 +1,5 @@
+const {NodePath} = require('@babel/core');
+const types = require('@babel/types');
 const fs = require('fs');
 const path = require('path');
 
@@ -46,6 +48,19 @@ function tryExpression(
 }
 
 /**
+ * 判断是否是导出节点
+ * @param {NodePath} nodePath
+ * @return {boolean}
+ */
+function isExportNode(nodePath) {
+  return types.isExportSpecifier(nodePath) ||
+  types.isExportNamedDeclaration(nodePath) ||
+  types.isExportDefaultDeclaration(nodePath) ||
+  types.isExportDefaultSpecifier(nodePath) ||
+  types.isExportNamespaceSpecifier(nodePath);
+}
+
+/**
  * 创建清空打包目录
  * @param {*} path 打包根目录
  */
@@ -63,5 +78,6 @@ module.exports = {
   getEntry,
   getOutput,
   tryExpression,
+  isExportNode,
   mkdir,
 };

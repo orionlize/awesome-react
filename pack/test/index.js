@@ -2,7 +2,7 @@
 // import * as all from './foo';
 import d, {base as base2} from './foo2';
 import c from './top';
-import {test, foo} from './foo';
+import {foo} from './foo';
 
-console.log(test);
+console.log(foo);
 console.log(d(), base2, c);

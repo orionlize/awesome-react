@@ -5,7 +5,7 @@ const types = require('@babel/types');
 
 const fs = require('fs');
 const path = require('path');
-const {getEntry, tryExpression, mkdir, getOutput} = require('./helper');
+const {getEntry, tryExpression, mkdir, getOutput, isExportNode} = require('./helper');
 
 class Compiler {
   constructor(options) {
@@ -58,6 +58,10 @@ class Compiler {
       Program: (nodePath) => {
         module.ast = nodePath;
       },
+      /**
+         *
+         * @param {NodePath} nodePath
+         */
       ImportDeclaration: (nodePath) => {
         const specifiers = nodePath.node.specifiers.filter((specifier) => {
           if (nodePath.scope.getBinding(specifier.local.name).referenced) {
@@ -84,10 +88,13 @@ class Compiler {
           });
           module.dependencies.set(subModulePath, dependencies);
         } else {
-          nodePath.parentPath.node.body =
-          nodePath.parentPath.node.body.filter((node) => node !== nodePath.node);
+          nodePath.remove();
         }
       },
+      /**
+         *
+         * @param {NodePath} nodePath
+         */
       CallExpression: (nodePath) => {
         if (nodePath.node.callee.name === 'require') {
           const rootPath = modulePath.split('/').slice(0, -1).join('/');
@@ -169,6 +176,10 @@ class Compiler {
     });
     this.modules.forEach((module) => {
       traverse(module.ast.node, {
+        /**
+         *
+         * @param {NodePath} nodePath
+         */
         VariableDeclaration: (nodePath) => {
           if (Array.isArray(nodePath.node.declarations)) {
             const declarations = nodePath.node.declarations.filter((declaration) => {
@@ -176,11 +187,15 @@ class Compiler {
                 for (const property of declaration.id.properties) {
                   const referencePaths = nodePath.scope.getBinding(property.key.name).referencePaths;
                   if (referencePaths.filter(
-                      (node) => !types.isExportSpecifier(node.container)).length) {
+                      (node) => !isExportNode(node.container) && !isExportNode(node.node)).length) {
                     return true;
                   } else {
                     referencePaths.forEach((node) => {
-                      node.parentPath.remove();
+                      if (!isExportNode(node)) {
+                        node.parentPath.remove();
+                      } else {
+                        node.remove();
+                      }
                     });
                     return false;
                   }
@@ -190,11 +205,15 @@ class Compiler {
               } else if (types.isIdentifier(declaration.id)) {
                 const referencePaths = nodePath.scope.getBinding(declaration.id.name).referencePaths;
                 if (referencePaths.filter(
-                    (node) => !types.isExportSpecifier(node.container)).length) {
+                    (node) => !isExportNode(node.container) && !isExportNode(node.node)).length) {
                   return true;
                 } else {
                   referencePaths.forEach((node) => {
-                    node.parentPath.remove();
+                    if (!isExportNode(node)) {
+                      node.parentPath.remove();
+                    } else {
+                      node.remove();
+                    }
                   });
                   return false;
                 }
@@ -203,8 +222,26 @@ class Compiler {
             if (declarations.length) {
               nodePath.node.declarations = declarations;
             } else {
+              debugger;
               nodePath.remove();
             }
+          }
+        },
+        /**
+         *
+         * @param {NodePath} nodePath
+         */
+        FunctionDeclaration: (nodePath) => {
+          const referencePaths = nodePath.scope.getBinding(nodePath.node.id.name).referencePaths;
+          if (!referencePaths.filter((node) => !isExportNode(node.container) && !isExportNode(node.node)).length) {
+            referencePaths.forEach((node) => {
+              if (!isExportNode(node)) {
+                node.parentPath.remove();
+              } else {
+                node.remove();
+              }
+            });
+            nodePath.remove();
           }
         },
       });

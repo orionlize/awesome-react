@@ -4,7 +4,7 @@ import {base} from './base';
 var a = base;
 var b = 50;
 
-export function test() {
+function test() {
   if (false) {
     var msg = 'hello!';
     console.log(msg);
@@ -45,6 +45,11 @@ export function test() {
     console.log(111);
   }
 }
+
+const exportTest = test;
+export {
+  exportTest,
+};
 
 const foo = function() {
   const cc = 100;
