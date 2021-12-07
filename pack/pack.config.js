@@ -4,6 +4,7 @@ module.exports = {
   input: ['./test/index.js'],
   output: 'build',
   resolve: ['.js'],
+  esmodules: true,
   jsx: true,
   loaders: [
     {

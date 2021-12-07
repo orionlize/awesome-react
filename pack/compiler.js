@@ -11,9 +11,9 @@ class Compiler {
   constructor(options) {
     this.options = options;
     this.hooks = {
-      run: new SyncHook(),
-      emit: new SyncHook(),
-      done: new SyncHook(),
+      run: new SyncHook(['target']),
+      emit: new SyncHook(['target']),
+      done: new SyncHook(['target']),
     };
     this.entries = new Set();
     this.modules = new Map();
@@ -31,7 +31,7 @@ class Compiler {
     if (this.modules.has(_modulePath)) {
       return this.modules.get(_modulePath);
     }
-    const content = fs.readFileSync(
+    let content = fs.readFileSync(
         _modulePath,
         {
           encoding: 'utf-8',
@@ -46,7 +46,7 @@ class Compiler {
     };
     this.options.loaders.reverse().forEach((item) => {
       if (item.test.test(_modulePath)) {
-        item.loader(content);
+        content = item.loader(content, _modulePath);
       }
     });
     const ast = parseSync(content, {
@@ -163,6 +163,13 @@ class Compiler {
             binding.referencePaths.concat(module.ast.scope.getBinding(name).referencePaths);
             binding.referenced = true;
             binding.references = binding.referencePaths.length;
+          } else {
+            const name = dependModule.ast.node.body.find((node) => types.isExportDefaultDeclaration(node)).declaration.name;
+            const binding = dependModule.ast.scope.getBinding(name);
+            binding.referencePaths =
+            binding.referencePaths.concat(module.ast.scope.getBinding(dependency.local).referencePaths);
+            binding.referenced = true;
+            binding.references = binding.referencePaths.length;
           }
         });
         this._treeShaking(dependModule);
@@ -254,16 +261,42 @@ class Compiler {
     });
   }
 
+  /**
+   *
+   * @param {NodePath} module
+   */
+  _generate(module) {
+    traverse(module.ast.node, {
+      ImportDeclaration: (nodePath) => {
+        nodePath.remove();
+      },
+      ExportDeclaration: (nodePath) => {
+        nodePath.remove();
+      },
+      ExportDefaultDeclaration: (nodePath) => {
+        nodePath.remove();
+      },
+      ExportAllDeclaration: (nodePath) => {
+        nodePath.remove();
+      },
+      ExportNamedDeclaration: (nodePath) => {
+        nodePath.remove();
+      },
+    });
+  }
+
   _dealEntry() {
     this.entries.forEach((entry) => {
       this._treeShaking(entry);
     });
+
     this.modules.forEach((module) => {
       this._traverse(module);
+      this._generate(module);
       const {code} = transformFromAstSync(module.ast.node, module._source, {
         presets: [['@babel/preset-env', {
           'targets': {
-            'esmodules': true,
+            esmodules: this.options.esmodules,
           },
         }]],
       });
@@ -272,7 +305,7 @@ class Compiler {
   }
 
   run(callback) {
-    this.hooks.run.call();
+    this.hooks.run.call(this);
     for (const entry of this.options.input) {
       const entryModule = this._buildModule(getEntry(entry), entry.split('/').slice(-1)[0]);
       this.entries.add(entryModule);
@@ -283,6 +316,7 @@ class Compiler {
     const absoluteOutput = getOutput(this.options.output);
     mkdir(absoluteOutput);
 
+    this.hooks.emit.call(this);
     this.modules.forEach((module) => {
       fs.writeFile(path.resolve(
           absoluteOutput,
@@ -293,6 +327,8 @@ class Compiler {
         }
       });
     });
+    this.hooks.done.call(this);
+    callback && callback();
   }
 }
 

@@ -69,8 +69,12 @@ function isExportNode(nodePath) {
 function deleteReferences(nodePath) {
   traverse(nodePath.node, {
     Identifier: (_nodePath) => {
-      debugger;
-      _nodePath.remove();
+      const binding = _nodePath.scope.getBinding(_nodePath.node.name);
+      if (binding) {
+        binding.referencePaths = binding.referencePaths.filter((path) => path.node !== _nodePath.node);
+        binding.references = binding.referencePaths.length;
+        binding.referenced = binding.referenced > 0;
+      }
     },
   }, nodePath.scope, nodePath.state, nodePath);
 }
