@@ -18,12 +18,14 @@
     "@babel/plugin-syntax-jsx": "^7.14.5",
     "@babel/preset-env": "^7.16.4",
     "@babel/preset-typescript": "^7.15.0",
+    "@babel/traverse": "^7.16.3",
     "@babel/types": "^7.16.0",
     "@lopatnov/rollup-plugin-uglify": "^2.1.1",
     "@types/react": "^17.0.25",
     "@types/react-dom": "^17.0.9",
     "@typescript-eslint/eslint-plugin": "^4.32.0",
     "@typescript-eslint/parser": "^4.32.0",
+    "babel-minify": "^0.5.1",
     "csstype": "^3.0.9",
     "eslint": "^7.32.0",
     "eslint-config-google": "^0.14.0",
@@ -42,6 +44,7 @@
   },
   "dependencies": {
     "jsdom": "^18.0.1",
+    "md5": "^2.3.0",
     "rollup": "^2.57.0"
   },
   "lint-staged": {

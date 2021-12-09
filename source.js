@@ -1,1 +1,0 @@
-'use strict';var {base,abc}=(function(){const base=0;const abc=100;return {base,abc}})();var {base$1}=(function(){let base$1=100;base=function(){return base+100;}();return {base$1}})();var {b}=(function(){function b(){return 200;}return {b}})();console.log(abc(),base,b(),base$1,c);

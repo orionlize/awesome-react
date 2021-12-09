@@ -5,7 +5,8 @@ const types = require('@babel/types');
 
 const fs = require('fs');
 const path = require('path');
-const {getEntry, tryExpression, mkdir, getOutput, isExportNode, deleteReferences} = require('./helper');
+const {getEntry, tryExpression, mkdir, getOutput, isExportNode, deleteReferences, rebuild} = require('./helper');
+const md5 = require('md5');
 
 class Compiler {
   constructor(options) {
@@ -43,6 +44,8 @@ class Compiler {
       dependencies: new Map(),
       name: originModulePath,
       ast: null,
+      exports: new Set(),
+      imports: new Set(),
     };
     this.options.loaders.reverse().forEach((item) => {
       if (item.test.test(_modulePath)) {
@@ -51,8 +54,6 @@ class Compiler {
     });
     const ast = parseSync(content, {
       sourceType: 'unambiguous',
-      sourceFileName: modulePath,
-      presets: ['@babel/preset-env'],
     });
     traverse(ast, {
       Program: (nodePath) => {
@@ -80,6 +81,7 @@ class Compiler {
             const dependency = {
               local: specifier.local.name,
               imported: '',
+              isNamespace: types.isImportNamespaceSpecifier(specifier),
             };
             if (types.isImportSpecifier(specifier)) {
               dependency.imported = specifier.imported.name;
@@ -136,6 +138,7 @@ class Compiler {
    * @type {Object}
    * @property {String} local
    * @property {String} imported
+   * @property {Boolean} isNamespace
    */
   /**
    * @typedef Module
@@ -144,17 +147,22 @@ class Compiler {
    * @property {Map<String, Specifier[]>} dependencies
    * @property {String} name
    * @property {String} moduleId
+   * @property {Set<String>} exports
+   * @property {Set<String>} imports
    */
   /**
-   * TreeShaking
+   *
    * @param {Module}module
    */
-  _treeShaking(module) {
+  _mixin(module) {
     if (!this.visited.has(module)) {
       this.visited.add(module);
       module.dependencies.forEach((value, key) => {
         /** @type {NodePath} */
         const dependModule = this.modules.get(key);
+        if (this.visited.has(dependModule)) {
+          return;
+        }
         value.forEach((dependency) => {
           if (dependency.imported) {
             const name = dependency.local || dependency.imported;
@@ -163,16 +171,40 @@ class Compiler {
             binding.referencePaths.concat(module.ast.scope.getBinding(name).referencePaths);
             binding.referenced = true;
             binding.references = binding.referencePaths.length;
-          } else {
+            if (this.options.format === 'iife') {
+              module.ast.scope.getBinding(name).referencePaths.forEach((nodePath) => {
+                nodePath.node.name = dependency.imported;
+              });
+            }
+          } else if (!dependency.isNamespace) {
             const name = dependModule.ast.node.body.find((node) => types.isExportDefaultDeclaration(node)).declaration.name;
             const binding = dependModule.ast.scope.getBinding(name);
             binding.referencePaths =
             binding.referencePaths.concat(module.ast.scope.getBinding(dependency.local).referencePaths);
             binding.referenced = true;
             binding.references = binding.referencePaths.length;
+            if (this.options.format === 'iife') {
+              module.ast.scope.getBinding(dependency.local).referencePaths.forEach((nodePath) => {
+                nodePath.node.name = name;
+              });
+            }
+          } else {
+            const entryReferencePaths = module.ast.scope.getBinding(dependency.local).referencePaths;
+            entryReferencePaths.forEach((reference) => {
+              const name = reference.parentPath.node.property.name;
+              if (name) {
+                const binding = dependModule.ast.scope.getBinding(name);
+                binding.referencePaths.push(reference);
+                binding.referenced = true;
+                binding.references = binding.referencePaths.length;
+                reference.parentPath.replaceWith(reference);
+              } else {
+                reference.remove();
+              }
+            });
           }
         });
-        this._treeShaking(dependModule);
+        this._mixin(dependModule);
       });
     }
   }
@@ -263,45 +295,133 @@ class Compiler {
 
   /**
    *
-   * @param {NodePath} module
+   * @param {Module} module
    */
-  _generate(module) {
+  _beforeGenerate(module) {
     traverse(module.ast.node, {
       ImportDeclaration: (nodePath) => {
+        nodePath.node.specifiers.forEach((specifier) => {
+          const name = specifier.local.name;
+          module.imports.add(name);
+        });
         nodePath.remove();
       },
-      ExportDeclaration: (nodePath) => {
-        nodePath.remove();
-      },
+    });
+    traverse(module.ast.node, {
       ExportDefaultDeclaration: (nodePath) => {
+        let name = nodePath.node.declaration.name;
+        const binding = nodePath.scope.getBinding(name);
+        const referencePaths = binding?.referencePaths;
+        referencePaths && referencePaths.forEach((_nodePath) => {
+          this.entries.forEach((entry) => {
+            let i = 0;
+            while (entry.ast.scope.references[`${name}${i || ''}`]) {
+              ++ i;
+            }
+            entry.ast.scope.references[name] = true;
+            name += i || '';
+            binding.identifier.name = name;
+            _nodePath.node.name = name;
+          });
+        });
+        if (module.imports.has(nodePath.node.declaration.name)) {
+          module.exports.delete(name);
+        } else {
+          module.exports.add(name);
+        }
         nodePath.remove();
       },
       ExportAllDeclaration: (nodePath) => {
         nodePath.remove();
       },
       ExportNamedDeclaration: (nodePath) => {
+        nodePath.node.specifiers.forEach((specifier) => {
+          let name = specifier.exported.name;
+          const binding = nodePath.scope.getBinding(name);
+          const referencePaths = binding?.referencePaths;
+          referencePaths && referencePaths.forEach((_nodePath) => {
+            this.entries.forEach((entry) => {
+              let i = 0;
+              while (entry.ast.scope.references[`${name}{i || ''}`]) {
+                ++ i;
+              }
+              name += i || '';
+              entry.ast.scope.references[name] = true;
+              binding.identifier.name = name;
+              _nodePath.node.name = name;
+            });
+          });
+          if (module.imports.has(specifier.exported.name)) {
+            module.exports.delete(name);
+          } else {
+            module.exports.add(name);
+          }
+        });
         nodePath.remove();
       },
     });
   }
 
+  /**
+   *
+   * @param {Module} module
+   * @param {Module} entry
+   */
+  _generate(module, entry) {
+    if (!this.visited.has(module)) {
+      this.visited.add(module);
+      module.dependencies.forEach((_, key) => {
+        /** @type {Module} */
+        const dependModule = this.modules.get(key);
+        if (this.visited.has(dependModule)) {
+          return;
+        }
+        const returns = [];
+        dependModule.exports.forEach((name) => {
+          const identifier = types.identifier(name);
+          returns.push(types.objectProperty(
+              identifier, identifier, false, true,
+          ));
+        });
+        if (dependModule.ast.node.body.length > 0) {
+          entry.ast.node.body = [types.variableDeclaration('var',
+              [types.variableDeclarator(
+                  types.objectPattern(returns),
+                  types.callExpression(
+                      types.arrowFunctionExpression([],
+                          types.blockStatement(
+                              dependModule.ast.node.body.concat(
+                                  [types.returnStatement(types.objectExpression(returns))],
+                              ),
+                          ),
+                      ), [],
+                  ),
+              )])].concat(entry.ast.node.body);
+        }
+        this._generate(dependModule, entry);
+      });
+    }
+  }
+
   _dealEntry() {
     this.entries.forEach((entry) => {
-      this._treeShaking(entry);
+      this.visited.clear();
+      this._mixin(entry);
     });
 
     this.modules.forEach((module) => {
       this._traverse(module);
-      this._generate(module);
-      const {code} = transformFromAstSync(module.ast.node, module._source, {
-        presets: [['@babel/preset-env', {
-          'targets': {
-            esmodules: this.options.esmodules,
-          },
-        }]],
-      });
-      module._source = code;
+      if (this.options.format === 'iife') {
+        this._beforeGenerate(module);
+      }
     });
+
+    if (this.options.format === 'iife') {
+      this.entries.forEach((entry) => {
+        this.visited.clear();
+        this._generate(entry, entry);
+      });
+    }
   }
 
   run(callback) {
@@ -317,15 +437,84 @@ class Compiler {
     mkdir(absoluteOutput);
 
     this.hooks.emit.call(this);
-    this.modules.forEach((module) => {
-      fs.writeFile(path.resolve(
-          absoluteOutput,
-        /\.js$/.test(module.name) ? module.name : module.name + '.js'),
-      module._source, (err) => {
-        if (err) {
-          console.log(err);
+    this.entries.forEach((entry) => {
+      if (this.options.format === 'iife') {
+        const [source, nodePath] = rebuild(entry.ast);
+        const {code, map} = transformFromAstSync(nodePath, source, {
+          presets: [['@babel/preset-env', {
+            'targets': {
+              esmodules: this.options.esmodules,
+            },
+          }], ['minify']],
+          comments: false,
+          sourceMaps: this.options.sourceMap,
+          filenameRelative: entry.moduleId,
+          shouldPrintComment: () => false,
+        });
+
+        let content = code;
+        const filename = `main_${md5(content).slice(0, 16)}`;
+        if (this.options.sourceMap) {
+          content += `//# sourceMappingURL=${filename}.js.map`;
+          map.file = `${filename}.js`;
         }
-      });
+
+        fs.writeFile(path.resolve(
+            absoluteOutput, `${filename}.js`),
+        content,
+        (err) => {
+          if (err) {
+            console.log(err);
+          }
+        });
+        fs.writeFile(
+            path.resolve(absoluteOutput, `${filename}.js.map`),
+            JSON.stringify(map),
+            (err) => {
+              if (err) {
+                console.log(err);
+              }
+            });
+      } else {
+        this.modules.forEach((module) => {
+          const [source, nodePath] = rebuild(module.ast);
+          const {code, map} = transformFromAstSync(nodePath, source, {
+            presets: [['@babel/preset-env', {
+              'targets': {
+                esmodules: this.options.esmodules,
+              },
+            }], ['minify']],
+            comments: false,
+            sourceMaps: this.options.sourceMap,
+            filenameRelative: module.moduleId,
+            shouldPrintComment: () => false,
+          });
+
+          let content = code;
+          const filename = /\.js$/.test(module.name) ? module.name : module.name + '.js';
+          if (this.options.sourceMap) {
+            content += `//# sourceMappingURL=${filename}.js.map`;
+            map.file = `${filename}.js`;
+          }
+
+          fs.writeFile(path.resolve(
+              absoluteOutput, filename),
+          content,
+          (err) => {
+            if (err) {
+              console.log(err);
+            }
+          });
+          fs.writeFile(
+              path.resolve(absoluteOutput, `${filename}.map`),
+              JSON.stringify(map),
+              (err) => {
+                if (err) {
+                  console.log(err);
+                }
+              });
+        });
+      }
     });
     this.hooks.done.call(this);
     callback && callback();

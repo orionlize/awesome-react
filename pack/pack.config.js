@@ -5,6 +5,8 @@ module.exports = {
   output: 'build',
   resolve: ['.js'],
   esmodules: true,
+  sourceMap: true,
+  format: 'esm',
   jsx: true,
   loaders: [
     {

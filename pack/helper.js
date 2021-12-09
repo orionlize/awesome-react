@@ -1,4 +1,4 @@
-const {NodePath} = require('@babel/core');
+const {NodePath, transformFromAstSync, parseSync} = require('@babel/core');
 const {default: traverse} = require('@babel/traverse');
 const types = require('@babel/types');
 const fs = require('fs');
@@ -80,6 +80,17 @@ function deleteReferences(nodePath) {
 }
 
 /**
+ * 根据重新生成的code重新build
+ * @param {NodePath} nodePath
+ * @return {[String, NodePath]}
+ */
+function rebuild(nodePath) {
+  const {code} = transformFromAstSync(nodePath.node);
+  const ast = parseSync(code);
+  return [code, ast];
+}
+
+/**
  * 创建清空打包目录
  * @param {*} path 打包根目录
  */
@@ -99,5 +110,6 @@ module.exports = {
   tryExpression,
   isExportNode,
   deleteReferences,
+  rebuild,
   mkdir,
 };
