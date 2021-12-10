@@ -85,7 +85,9 @@ function deleteReferences(nodePath) {
  * @return {[String, NodePath]}
  */
 function rebuild(nodePath) {
-  const {code} = transformFromAstSync(nodePath.node);
+  const {code} = transformFromAstSync(nodePath.node, '', {
+    comments: false,
+  });
   const ast = parseSync(code);
   return [code, ast];
 }

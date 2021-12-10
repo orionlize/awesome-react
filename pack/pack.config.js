@@ -6,7 +6,7 @@ module.exports = {
   resolve: ['.js'],
   esmodules: true,
   sourceMap: true,
-  format: 'esm',
+  format: 'cjs',
   jsx: true,
   loaders: [
     {

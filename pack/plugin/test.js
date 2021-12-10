@@ -5,7 +5,7 @@ class TestPlugin {
 
   apply(pack) {
     pack.hooks.emit.tap('emit', (target) => {
-      console.log('run start!');
+      debugger;
     });
   }
 }

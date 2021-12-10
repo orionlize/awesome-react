@@ -478,12 +478,16 @@ class Compiler {
       } else {
         this.modules.forEach((module) => {
           const [source, nodePath] = rebuild(module.ast);
-          const {code, map} = transformFromAstSync(nodePath, source, {
-            presets: [['@babel/preset-env', {
+          const presets = [['minify']];
+          if (this.options.format === 'cjs') {
+            presets.push(['@babel/preset-env', {
               'targets': {
                 esmodules: this.options.esmodules,
               },
-            }], ['minify']],
+            }]);
+          }
+          const {code, map} = transformFromAstSync(nodePath, source, {
+            presets: presets,
             comments: false,
             sourceMaps: this.options.sourceMap,
             filenameRelative: module.moduleId,
