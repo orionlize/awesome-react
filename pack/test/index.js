@@ -4,5 +4,10 @@ import d, {base as base2} from './foo2';
 import c from './top';
 import {foo} from './foo';
 
-console.error(foo, all.exportTest);
+console.error(foo, all.exportTest());
 console.error(d(), base2, c);
+
+const div = document.createElement('div');
+div.innerText = 'hello world';
+
+document.getElementById('root').appendChild(div);

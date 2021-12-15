@@ -25,6 +25,7 @@
     "@types/react-dom": "^17.0.9",
     "@typescript-eslint/eslint-plugin": "^4.32.0",
     "@typescript-eslint/parser": "^4.32.0",
+    "babel-concat-sourcemaps": "^1.0.9",
     "babel-minify": "^0.5.1",
     "csstype": "^3.0.9",
     "eslint": "^7.32.0",
@@ -38,6 +39,7 @@
     "rollup-plugin-eslint": "^7.0.0",
     "rollup-plugin-node-resolve": "^5.2.0",
     "rollup-plugin-typescript": "^1.0.1",
+    "source-map": "~0.6.1",
     "tapable": "^2.2.1",
     "terser": "^5.9.0",
     "typescript": "^4.4.3"

@@ -1,12 +1,15 @@
-const TestPlugin = require('./plugin/test');
+const TestPlugin = require('./plugin/pack-split-plugin');
 
 module.exports = {
-  input: ['./test/index.js'],
+  input: [
+    './test/index.js',
+    './test/index2.js',
+  ],
   output: 'build',
   resolve: ['.js'],
   esmodules: true,
   sourceMap: true,
-  format: 'cjs',
+  format: 'iife',
   jsx: true,
   loaders: [
     {
@@ -15,6 +18,6 @@ module.exports = {
     },
   ],
   plugins: [
-    new TestPlugin(),
+    new TestPlugin({}),
   ],
 };

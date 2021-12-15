@@ -5,8 +5,9 @@ const types = require('@babel/types');
 
 const fs = require('fs');
 const path = require('path');
-const {getEntry, tryExpression, mkdir, getOutput, isExportNode, deleteReferences, rebuild} = require('./helper');
+const {getEntry, tryExpression, mkdir, getOutput, isExportNode, deleteReferences, fillInHtml, generateSourceNode} = require('./helper');
 const md5 = require('md5');
+const {babelConcat} = require('babel-concat-sourcemaps');
 
 class Compiler {
   constructor(options) {
@@ -22,6 +23,7 @@ class Compiler {
     this.assets = new Set();
     this.files = new Set();
     this.visited = new Set();
+    this.emitIndex = 0;
     options.plugins.forEach((plugin) => {
       plugin.apply(this);
     });
@@ -128,6 +130,7 @@ class Compiler {
     });
 
     module._source = content;
+
     this.modules.set(_modulePath, module);
     return module;
   }
@@ -149,6 +152,9 @@ class Compiler {
    * @property {String} moduleId
    * @property {Set<String>} exports
    * @property {Set<String>} imports
+   * @property {Number} index
+   * @property {String} code
+   * @property {Object} map
    */
   /**
    *
@@ -365,9 +371,8 @@ class Compiler {
   /**
    *
    * @param {Module} module
-   * @param {Module} entry
    */
-  _generate(module, entry) {
+  _generate(module) {
     if (!this.visited.has(module)) {
       this.visited.add(module);
       module.dependencies.forEach((_, key) => {
@@ -384,7 +389,7 @@ class Compiler {
           ));
         });
         if (dependModule.ast.node.body.length > 0) {
-          entry.ast.node.body = [types.variableDeclaration('var',
+          dependModule.ast.node.body = [types.variableDeclaration('var',
               [types.variableDeclarator(
                   types.objectPattern(returns),
                   types.callExpression(
@@ -396,11 +401,16 @@ class Compiler {
                           ),
                       ), [],
                   ),
-              )])].concat(entry.ast.node.body);
+              )])];
+        } else {
+          this.modules.delete(key);
         }
-        this._generate(dependModule, entry);
+        this._generate(dependModule);
       });
+    } else {
+      return;
     }
+    module.index = this.emitIndex ++;
   }
 
   _dealEntry() {
@@ -419,9 +429,65 @@ class Compiler {
     if (this.options.format === 'iife') {
       this.entries.forEach((entry) => {
         this.visited.clear();
-        this._generate(entry, entry);
+        this._generate(entry);
       });
     }
+  }
+
+  /**
+   * split chunks
+   * @param {Module[]} modules
+   * @return {Module}
+   */
+  merge(modules) {
+    const res = babelConcat(modules.map((module) => generateSourceNode(module.code, module.map)), {
+      sourceMaps: true,
+    });
+    if (modules.length) {
+      const from = modules[0];
+      from.map = JSON.parse(res.map.toString());
+      modules.slice(1).forEach((module) => {
+        from.code += module.code;
+        this.modules.delete(module.moduleId);
+      });
+      return from;
+    }
+
+    return null;
+  }
+
+  /**
+   * 写入chunks和sourcemap
+   * @param {Module} module
+   * @param {String} absoluteOutput
+   * @param {Array<String>} chunks
+   */
+  write(module, absoluteOutput, chunks) {
+    let code = module.code;
+    const {map, index} = module;
+    const filename = `${index}.${this.entries.has(module) ? 'main' : 'chunk'}_${md5(code).slice(0, 16)}`;
+    if (this.options.sourceMap) {
+      code += `//# sourceMappingURL=${filename}.js.map`;
+      map.file = `./${filename}.js`;
+    }
+
+    fs.writeFile(path.resolve(
+        absoluteOutput, `${filename}.js`),
+    code,
+    (err) => {
+      if (err) {
+        console.log(err);
+      }
+    });
+    fs.writeFile(
+        path.resolve(absoluteOutput, `${filename}.js.map`),
+        JSON.stringify(map),
+        (err) => {
+          if (err) {
+            console.log(err);
+          }
+        });
+    chunks.push(`./${filename}.js`);
   }
 
   run(callback) {
@@ -436,90 +502,84 @@ class Compiler {
     const absoluteOutput = getOutput(this.options.output);
     mkdir(absoluteOutput);
 
-    this.hooks.emit.call(this);
-    this.entries.forEach((entry) => {
-      if (this.options.format === 'iife') {
-        const [source, nodePath] = rebuild(entry.ast);
-        const {code, map} = transformFromAstSync(nodePath, source, {
-          presets: [['@babel/preset-env', {
-            'targets': {
-              esmodules: this.options.esmodules,
-            },
-          }], ['minify']],
+    const chunks = [];
+    if (this.options.format === 'iife') {
+      this.modules.forEach((module) => {
+        const {code, map} = transformFromAstSync(module.ast.node, module._source, {
+          presets: [['@babel/preset-env'], ['minify']],
           comments: false,
           sourceMaps: this.options.sourceMap,
-          filenameRelative: entry.moduleId,
+          filenameRelative: module.moduleId,
+          sourceRoot: module.moduleId.split('/').slice(0, -1).join('/'),
           shouldPrintComment: () => false,
         });
+        module.map = map;
+        module.code = code;
+      });
 
-        let content = code;
-        const filename = `main_${md5(content).slice(0, 16)}`;
-        if (this.options.sourceMap) {
-          content += `//# sourceMappingURL=${filename}.js.map`;
-          map.file = `${filename}.js`;
+      this.modules.forEach((module, key) => {
+        if (this.entries.has(module)) {
+          this.modules.delete(key);
         }
+      });
+      this.hooks.emit.call(this);
 
-        fs.writeFile(path.resolve(
-            absoluteOutput, `${filename}.js`),
-        content,
-        (err) => {
-          if (err) {
-            console.log(err);
-          }
-        });
-        fs.writeFile(
-            path.resolve(absoluteOutput, `${filename}.js.map`),
-            JSON.stringify(map),
-            (err) => {
-              if (err) {
-                console.log(err);
-              }
-            });
-      } else {
-        this.modules.forEach((module) => {
-          const [source, nodePath] = rebuild(module.ast);
-          const presets = [['minify']];
-          if (this.options.format === 'cjs') {
-            presets.push(['@babel/preset-env', {
-              'targets': {
-                esmodules: this.options.esmodules,
-              },
-            }]);
-          }
-          const {code, map} = transformFromAstSync(nodePath, source, {
-            presets: presets,
-            comments: false,
-            sourceMaps: this.options.sourceMap,
-            filenameRelative: module.moduleId,
-            shouldPrintComment: () => false,
-          });
+      this.modules.forEach((module) => {
+        this.write(module, absoluteOutput, chunks);
+      });
+      this.entries.forEach((entry) => {
+        this.write(entry, absoluteOutput, chunks);
+      });
 
-          let content = code;
-          const filename = /\.js$/.test(module.name) ? module.name : module.name + '.js';
-          if (this.options.sourceMap) {
-            content += `//# sourceMappingURL=${filename}.js.map`;
-            map.file = `${filename}.js`;
-          }
+      fs.writeFile(path.resolve(
+          absoluteOutput, `index.html`), fillInHtml(chunks, './index.html'), (err) => {
+        if (err) {
+          console.log(err);
+        }
+      });
+    } else {
+      // this.modules.forEach((module) => {
+      //   const presets = [['minify']];
+      //   if (this.options.format === 'cjs') {
+      //     presets.push(['@babel/preset-env', {
+      //       'targets': {
+      //         esmodules: this.options.esmodules,
+      //       },
+      //     }]);
+      //   }
+      //   const {code, map} = transformFromAstSync(module.ast, module._source, {
+      //     presets: presets,
+      //     comments: false,
+      //     sourceMaps: this.options.sourceMap,
+      //     filenameRelative: module.moduleId,
+      //     shouldPrintComment: () => false,
+      //   });
 
-          fs.writeFile(path.resolve(
-              absoluteOutput, filename),
-          content,
-          (err) => {
-            if (err) {
-              console.log(err);
-            }
-          });
-          fs.writeFile(
-              path.resolve(absoluteOutput, `${filename}.map`),
-              JSON.stringify(map),
-              (err) => {
-                if (err) {
-                  console.log(err);
-                }
-              });
-        });
-      }
-    });
+      //   let content = code;
+      //   const filename = /\.js$/.test(module.name) ? module.name : module.name + '.js';
+      //   if (this.options.sourceMap) {
+      //     content += `//# sourceMappingURL=${filename}.js.map`;
+      //     map.file = `${filename}.js`;
+      //   }
+
+      //   fs.writeFile(path.resolve(
+      //       absoluteOutput, filename),
+      //   content,
+      //   (err) => {
+      //     if (err) {
+      //       console.log(err);
+      //     }
+      //   });
+      //   fs.writeFile(
+      //       path.resolve(absoluteOutput, `${filename}.map`),
+      //       JSON.stringify(map),
+      //       (err) => {
+      //         if (err) {
+      //           console.log(err);
+      //         }
+      //       });
+      // });
+    }
     this.hooks.done.call(this);
     callback && callback();
   }

@@ -3,6 +3,7 @@ const {default: traverse} = require('@babel/traverse');
 const types = require('@babel/types');
 const fs = require('fs');
 const path = require('path');
+const {SourceMapConsumer, SourceNode} = require('source-map');
 
 /**
  * 返回入口文件路径
@@ -82,10 +83,11 @@ function deleteReferences(nodePath) {
 /**
  * 根据重新生成的code重新build
  * @param {NodePath} nodePath
+ * @param {String} origin
  * @return {[String, NodePath]}
  */
-function rebuild(nodePath) {
-  const {code} = transformFromAstSync(nodePath.node, '', {
+function rebuild(nodePath, origin) {
+  const {code} = transformFromAstSync(nodePath.node, origin, {
     comments: false,
   });
   const ast = parseSync(code);
@@ -106,6 +108,29 @@ function mkdir(path) {
   fs.mkdirSync(path);
 }
 
+function generateSourceNode(code, map) {
+  const theSourceMapConsumer = new SourceMapConsumer(map);
+  const theGeneratedNode = SourceNode.fromStringWithSourceMap(code, theSourceMapConsumer);
+
+  return theGeneratedNode;
+}
+
+/**
+ * 处理写入的chunks到html
+ * @param {Array<String>} chunks
+ * @param {String} htmlSrc
+ * @return {String}
+ */
+function fillInHtml(chunks, htmlSrc) {
+  const html = fs.readFileSync(htmlSrc, {encoding: 'utf-8'});
+  let [, header, , footer] = /((\r\n|\n|.)*)<\/body>((\r\n|\n|.)*)/.exec(html);
+  chunks.forEach((chunk) => {
+    header += `\t<script src="${chunk}"></script>\r\n\t`;
+  });
+
+  return header + '</body>' + footer;
+}
+
 module.exports = {
   getEntry,
   getOutput,
@@ -114,4 +139,6 @@ module.exports = {
   deleteReferences,
   rebuild,
   mkdir,
+  generateSourceNode,
+  fillInHtml,
 };

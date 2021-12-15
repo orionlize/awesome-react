@@ -5,6 +5,7 @@ var a = base;
 var b = 50;
 
 function test() {
+  console.warn('=======test is called');
   if (false) {
     var msg = 'hello!';
     console.log(msg);
@@ -51,7 +52,7 @@ export {
   exportTest,
 };
 
-const foo = function() {
+function foo() {
   const cc = 100;
   const cb = (cc) => {
     console.log(cc);
