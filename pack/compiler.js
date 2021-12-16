@@ -47,7 +47,7 @@ class Compiler {
       name: originModulePath,
       ast: null,
       exports: new Set(),
-      imports: new Set(),
+      isPack: false,
     };
     this.options.loaders.reverse().forEach((item) => {
       if (item.test.test(_modulePath)) {
@@ -155,6 +155,7 @@ class Compiler {
    * @property {Number} index
    * @property {String} code
    * @property {Object} map
+   * @property {Boolean} isPack
    */
   /**
    *
@@ -169,7 +170,7 @@ class Compiler {
         if (this.visited.has(dependModule)) {
           return;
         }
-        value.forEach((dependency) => {
+        value.forEach((dependency, i) => {
           if (dependency.imported) {
             const name = dependency.local || dependency.imported;
             const binding = dependModule.ast.scope.getBinding(dependency.imported);
@@ -196,18 +197,26 @@ class Compiler {
             }
           } else {
             const entryReferencePaths = module.ast.scope.getBinding(dependency.local).referencePaths;
+            const used = [];
             entryReferencePaths.forEach((reference) => {
               const name = reference.parentPath.node.property.name;
               if (name) {
+                reference.node.name = name;
                 const binding = dependModule.ast.scope.getBinding(name);
                 binding.referencePaths.push(reference);
                 binding.referenced = true;
                 binding.references = binding.referencePaths.length;
                 reference.parentPath.replaceWith(reference);
+                used.push({
+                  local: name,
+                  isNamespace: false,
+                  imported: name,
+                });
               } else {
                 reference.remove();
               }
             });
+            value.splice(i, 1, ...used);
           }
         });
         this._mixin(dependModule);
@@ -306,35 +315,19 @@ class Compiler {
   _beforeGenerate(module) {
     traverse(module.ast.node, {
       ImportDeclaration: (nodePath) => {
-        nodePath.node.specifiers.forEach((specifier) => {
-          const name = specifier.local.name;
-          module.imports.add(name);
-        });
         nodePath.remove();
       },
     });
     traverse(module.ast.node, {
       ExportDefaultDeclaration: (nodePath) => {
-        let name = nodePath.node.declaration.name;
+        const name = nodePath.node.declaration.name;
         const binding = nodePath.scope.getBinding(name);
         const referencePaths = binding?.referencePaths;
         referencePaths && referencePaths.forEach((_nodePath) => {
-          this.entries.forEach((entry) => {
-            let i = 0;
-            while (entry.ast.scope.references[`${name}${i || ''}`]) {
-              ++ i;
-            }
-            entry.ast.scope.references[name] = true;
-            name += i || '';
-            binding.identifier.name = name;
-            _nodePath.node.name = name;
-          });
+          binding.identifier.name = name;
+          _nodePath.node.name = name;
         });
-        if (module.imports.has(nodePath.node.declaration.name)) {
-          module.exports.delete(name);
-        } else {
-          module.exports.add(name);
-        }
+        module.exports.add(name);
         nodePath.remove();
       },
       ExportAllDeclaration: (nodePath) => {
@@ -342,30 +335,76 @@ class Compiler {
       },
       ExportNamedDeclaration: (nodePath) => {
         nodePath.node.specifiers.forEach((specifier) => {
-          let name = specifier.exported.name;
-          const binding = nodePath.scope.getBinding(name);
-          const referencePaths = binding?.referencePaths;
-          referencePaths && referencePaths.forEach((_nodePath) => {
-            this.entries.forEach((entry) => {
-              let i = 0;
-              while (entry.ast.scope.references[`${name}{i || ''}`]) {
-                ++ i;
-              }
-              name += i || '';
-              entry.ast.scope.references[name] = true;
-              binding.identifier.name = name;
-              _nodePath.node.name = name;
-            });
-          });
-          if (module.imports.has(specifier.exported.name)) {
-            module.exports.delete(name);
-          } else {
-            module.exports.add(name);
-          }
+          const name = specifier.exported.name;
+          module.exports.add(name);
         });
         nodePath.remove();
       },
     });
+  }
+
+  /**
+   *
+   * @param {String} key
+   */
+  _addDependencies(key) {
+    /** @type {Module} */
+    const dependModule = this.modules.get(key);
+    if (this.visited.has(dependModule)) {
+      return;
+    }
+    const returns = [];
+    const imports = [];
+    dependModule.exports && dependModule.exports.forEach((name) => {
+      const identifier = types.identifier(name);
+      returns.push(types.objectProperty(
+          identifier, identifier, false, true,
+      ));
+    });
+    dependModule.dependencies.forEach((dependency, key) => {
+      const md5Key = md5(key);
+      const properties = [];
+      dependency.forEach((val) => {
+        properties.push(types.objectProperty(
+            types.identifier(val.imported || val.local),
+            types.identifier(val.local),
+            false,
+            val.imported === val.local,
+        ));
+      });
+      const variableDeclaration = types.variableDeclaration('var', [
+        types.variableDeclarator(
+            types.objectPattern(properties),
+            types.memberExpression(
+                types.identifier('window'),
+                types.identifier(md5Key),
+            ),
+        ),
+      ]);
+      imports.push(variableDeclaration);
+    });
+    // if (dependModule.ast.node.body.length > 0) {
+    if (!dependModule.isPack) {
+      dependModule.isPack = true;
+      dependModule.ast.node.body = [types.expressionStatement(
+          types.assignmentExpression('=', types.memberExpression(
+              types.identifier('window'),
+              types.stringLiteral(md5(dependModule.moduleId)),
+              true,
+              false,
+          ), types.callExpression(
+              types.arrowFunctionExpression([],
+                  types.blockStatement(
+                      imports.concat(
+                          dependModule.ast.node.body,
+                          [types.returnStatement(types.objectExpression(returns))],
+                      ),
+                  ),
+              ), [],
+          )))];
+    }
+    // }
+    this._generate(dependModule);
   }
 
   /**
@@ -376,36 +415,7 @@ class Compiler {
     if (!this.visited.has(module)) {
       this.visited.add(module);
       module.dependencies.forEach((_, key) => {
-        /** @type {Module} */
-        const dependModule = this.modules.get(key);
-        if (this.visited.has(dependModule)) {
-          return;
-        }
-        const returns = [];
-        dependModule.exports.forEach((name) => {
-          const identifier = types.identifier(name);
-          returns.push(types.objectProperty(
-              identifier, identifier, false, true,
-          ));
-        });
-        if (dependModule.ast.node.body.length > 0) {
-          dependModule.ast.node.body = [types.variableDeclaration('var',
-              [types.variableDeclarator(
-                  types.objectPattern(returns),
-                  types.callExpression(
-                      types.arrowFunctionExpression([],
-                          types.blockStatement(
-                              dependModule.ast.node.body.concat(
-                                  [types.returnStatement(types.objectExpression(returns))],
-                              ),
-                          ),
-                      ), [],
-                  ),
-              )])];
-        } else {
-          this.modules.delete(key);
-        }
-        this._generate(dependModule);
+        this._addDependencies(key);
       });
     } else {
       return;
@@ -429,6 +439,7 @@ class Compiler {
     if (this.options.format === 'iife') {
       this.entries.forEach((entry) => {
         this.visited.clear();
+        this._addDependencies(entry.moduleId);
         this._generate(entry);
       });
     }
@@ -506,7 +517,33 @@ class Compiler {
     if (this.options.format === 'iife') {
       this.modules.forEach((module) => {
         const {code, map} = transformFromAstSync(module.ast.node, module._source, {
-          presets: [['@babel/preset-env'], ['minify']],
+          presets: [
+            ['@babel/preset-env'],
+            // ['minify', {
+            //   booleans: false,
+            //   builtIns: false,
+            //   consecutiveAdds: false,
+            //   deadcode: false,
+            //   evaluate: false,
+            //   flipComparisons: false,
+            //   guards: false,
+            //   infinity: false,
+            //   mangle: false,
+            //   memberExpressions: false,
+            //   mergeVars: false,
+            //   numericLiterals: false,
+            //   propertyLiterals: false,
+            //   regexpConstructors: false,
+            //   removeConsole: false,
+            //   removeDebugger: false,
+            //   removeUndefined: false,
+            //   replace: false,
+            //   simplify: false,
+            //   simplifyComparisons: false,
+            //   typeConstructors: false,
+            //   undefinedToVoid: false,
+            // }],
+          ],
           comments: false,
           sourceMaps: this.options.sourceMap,
           filenameRelative: module.moduleId,
@@ -522,6 +559,7 @@ class Compiler {
           this.modules.delete(key);
         }
       });
+
       this.hooks.emit.call(this);
 
       this.modules.forEach((module) => {

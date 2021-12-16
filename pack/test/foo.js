@@ -53,6 +53,7 @@ export {
 };
 
 function foo() {
+  // debugger;
   const cc = 100;
   const cb = (cc) => {
     console.log(cc);
