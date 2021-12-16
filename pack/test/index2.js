@@ -1,3 +1,3 @@
-import * as all from './foo';
+// import * as all from './foo';
 
-console.log(all.foo());
+// console.log(all.foo());

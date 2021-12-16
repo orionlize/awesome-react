@@ -178,11 +178,6 @@ class Compiler {
             binding.referencePaths.concat(module.ast.scope.getBinding(name).referencePaths);
             binding.referenced = true;
             binding.references = binding.referencePaths.length;
-            if (this.options.format === 'iife') {
-              module.ast.scope.getBinding(name).referencePaths.forEach((nodePath) => {
-                nodePath.node.name = dependency.imported;
-              });
-            }
           } else if (!dependency.isNamespace) {
             const name = dependModule.ast.node.body.find((node) => types.isExportDefaultDeclaration(node)).declaration.name;
             const binding = dependModule.ast.scope.getBinding(name);
@@ -190,11 +185,6 @@ class Compiler {
             binding.referencePaths.concat(module.ast.scope.getBinding(dependency.local).referencePaths);
             binding.referenced = true;
             binding.references = binding.referencePaths.length;
-            if (this.options.format === 'iife') {
-              module.ast.scope.getBinding(dependency.local).referencePaths.forEach((nodePath) => {
-                nodePath.node.name = name;
-              });
-            }
           } else {
             const entryReferencePaths = module.ast.scope.getBinding(dependency.local).referencePaths;
             const used = [];
@@ -321,13 +311,10 @@ class Compiler {
     traverse(module.ast.node, {
       ExportDefaultDeclaration: (nodePath) => {
         const name = nodePath.node.declaration.name;
-        const binding = nodePath.scope.getBinding(name);
-        const referencePaths = binding?.referencePaths;
-        referencePaths && referencePaths.forEach((_nodePath) => {
-          binding.identifier.name = name;
-          _nodePath.node.name = name;
+        module.exports.add({
+          name,
+          isDefault: true,
         });
-        module.exports.add(name);
         nodePath.remove();
       },
       ExportAllDeclaration: (nodePath) => {
@@ -336,7 +323,10 @@ class Compiler {
       ExportNamedDeclaration: (nodePath) => {
         nodePath.node.specifiers.forEach((specifier) => {
           const name = specifier.exported.name;
-          module.exports.add(name);
+          module.exports.add({
+            name,
+            isDefault: false,
+          });
         });
         nodePath.remove();
       },
@@ -355,10 +345,10 @@ class Compiler {
     }
     const returns = [];
     const imports = [];
-    dependModule.exports && dependModule.exports.forEach((name) => {
-      const identifier = types.identifier(name);
+    dependModule.exports && dependModule.exports.forEach((node) => {
+      const identifier = types.identifier(node.name);
       returns.push(types.objectProperty(
-          identifier, identifier, false, true,
+          node.isDefault ? types.identifier('default') : identifier, identifier, false, true,
       ));
     });
     dependModule.dependencies.forEach((dependency, key) => {
@@ -366,7 +356,7 @@ class Compiler {
       const properties = [];
       dependency.forEach((val) => {
         properties.push(types.objectProperty(
-            types.identifier(val.imported || val.local),
+            types.identifier(val.imported ? val.imported : 'default'),
             types.identifier(val.local),
             false,
             val.imported === val.local,
@@ -520,28 +510,28 @@ class Compiler {
           presets: [
             ['@babel/preset-env'],
             // ['minify', {
-            //   booleans: false,
-            //   builtIns: false,
-            //   consecutiveAdds: false,
+            //   booleans: true,
+            //   builtIns: true,
+            //   consecutiveAdds: true,
             //   deadcode: false,
-            //   evaluate: false,
-            //   flipComparisons: false,
-            //   guards: false,
-            //   infinity: false,
+            //   evaluate: true,
+            //   flipComparisons: true,
+            //   guards: true,
+            //   infinity: true,
             //   mangle: false,
-            //   memberExpressions: false,
-            //   mergeVars: false,
-            //   numericLiterals: false,
-            //   propertyLiterals: false,
-            //   regexpConstructors: false,
+            //   memberExpressions: true,
+            //   mergeVars: true,
+            //   numericLiterals: true,
+            //   propertyLiterals: true,
+            //   regexpConstructors: true,
             //   removeConsole: false,
-            //   removeDebugger: false,
-            //   removeUndefined: false,
-            //   replace: false,
-            //   simplify: false,
-            //   simplifyComparisons: false,
-            //   typeConstructors: false,
-            //   undefinedToVoid: false,
+            //   removeDebugger: true,
+            //   removeUndefined: true,
+            //   replace: true,
+            //   simplify: true,
+            //   simplifyComparisons: true,
+            //   typeConstructors: true,
+            //   undefinedToVoid: true,
             // }],
           ],
           comments: false,

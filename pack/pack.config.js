@@ -18,8 +18,6 @@ module.exports = {
     },
   ],
   plugins: [
-    new TestPlugin({
-      split: () => [],
-    }),
+    new TestPlugin({}),
   ],
 };

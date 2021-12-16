@@ -1,11 +1,15 @@
 // import rollup, {rollup as rollup1} from 'rollup';
-import * as all from './foo';
-import d, {base as base2} from './foo2';
-import c from './top';
-import {foo} from './foo';
+// import * as all from './foo';
+// import d, {base as base2} from './foo2';
+// import c from './top';
+// import {foo} from './foo';
 
-console.error(foo, all.exportTest());
-console.error(d(), base2, c);
+// console.error(foo, all.exportTest());
+// console.error(d(), base2, c);
+
+import {base} from './foo2'
+
+console.log(base)
 
 const div = document.createElement('div');
 div.innerText = 'hello world';
