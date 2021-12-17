@@ -11,7 +11,24 @@ const {babelConcat} = require('babel-concat-sourcemaps');
 
 class Compiler {
   constructor(options) {
-    this.options = options;
+    this.options = {
+      esmodules: true,
+      sourceMap: true,
+      format: 'iife',
+      resolve: ['.js'],
+      ...options,
+    };
+    this.presets = [
+      ['@babel/preset-env'],
+      ['minify', {
+        deadcode: false,
+        mangle: false,
+        simplify: false,
+      }],
+    ];
+    if (this.options.jsx) {
+      this.presets.push(['@babel/preset-react']);
+    }
     this.hooks = {
       run: new SyncHook(['target']),
       emit: new SyncHook(['target']),
@@ -182,9 +199,13 @@ class Compiler {
             const name = dependModule.ast.node.body.find((node) => types.isExportDefaultDeclaration(node)).declaration.name;
             const binding = dependModule.ast.scope.getBinding(name);
             binding.referencePaths =
-            binding.referencePaths.concat(module.ast.scope.getBinding(dependency.local).referencePaths);
-            binding.referenced = true;
+              binding.referencePaths.concat(module.ast.scope.getBinding(dependency.local).referencePaths).
+                  filter((nodePath) => !isExportNode(nodePath.container));
+            binding.referenced = binding.referencePaths.length > 0;
             binding.references = binding.referencePaths.length;
+            if (!binding.referenced) {
+              value.splice(i, 1);
+            }
           } else {
             const entryReferencePaths = module.ast.scope.getBinding(dependency.local).referencePaths;
             const used = [];
@@ -362,38 +383,46 @@ class Compiler {
             val.imported === val.local,
         ));
       });
-      const variableDeclaration = types.variableDeclaration('var', [
-        types.variableDeclarator(
-            types.objectPattern(properties),
-            types.memberExpression(
-                types.identifier('window'),
-                types.identifier(md5Key),
-            ),
-        ),
-      ]);
-      imports.push(variableDeclaration);
+      if (properties.length > 0) {
+        const variableDeclaration = types.variableDeclaration('var', [
+          types.variableDeclarator(
+              types.objectPattern(properties),
+              types.memberExpression(
+                  types.identifier('window'),
+                  types.identifier(md5Key),
+              ),
+          ),
+        ]);
+        imports.push(variableDeclaration);
+      } else {
+        if (!this.entries.has(dependModule)) {
+          this.modules.delete(dependModule.moduleId);
+        }
+      }
     });
-    // if (dependModule.ast.node.body.length > 0) {
-    if (!dependModule.isPack) {
-      dependModule.isPack = true;
-      dependModule.ast.node.body = [types.expressionStatement(
-          types.assignmentExpression('=', types.memberExpression(
-              types.identifier('window'),
-              types.stringLiteral(md5(dependModule.moduleId)),
-              true,
-              false,
-          ), types.callExpression(
-              types.arrowFunctionExpression([],
-                  types.blockStatement(
-                      imports.concat(
-                          dependModule.ast.node.body,
-                          [types.returnStatement(types.objectExpression(returns))],
-                      ),
-                  ),
-              ), [],
-          )))];
+    if (dependModule.ast.node.body.length === 0 && returns.length === 0) {
+      this.modules.delete(dependModule.moduleId);
+    } else {
+      if (!dependModule.isPack) {
+        dependModule.isPack = true;
+        dependModule.ast.node.body = [types.expressionStatement(
+            types.assignmentExpression('=', types.memberExpression(
+                types.identifier('window'),
+                types.stringLiteral(md5(dependModule.moduleId)),
+                true,
+                false,
+            ), types.callExpression(
+                types.arrowFunctionExpression([],
+                    types.blockStatement(
+                        imports.concat(
+                            dependModule.ast.node.body,
+                            [types.returnStatement(types.objectExpression(returns))],
+                        ),
+                    ),
+                ), [],
+            )))];
+      }
     }
-    // }
     this._generate(dependModule);
   }
 
@@ -465,6 +494,7 @@ class Compiler {
    */
   write(module, absoluteOutput, chunks) {
     let code = module.code;
+    if (!code) return;
     const {map, index} = module;
     const filename = `${index}.${this.entries.has(module) ? 'main' : 'chunk'}_${md5(code).slice(0, 16)}`;
     if (this.options.sourceMap) {
@@ -507,33 +537,7 @@ class Compiler {
     if (this.options.format === 'iife') {
       this.modules.forEach((module) => {
         const {code, map} = transformFromAstSync(module.ast.node, module._source, {
-          presets: [
-            ['@babel/preset-env'],
-            // ['minify', {
-            //   booleans: true,
-            //   builtIns: true,
-            //   consecutiveAdds: true,
-            //   deadcode: false,
-            //   evaluate: true,
-            //   flipComparisons: true,
-            //   guards: true,
-            //   infinity: true,
-            //   mangle: false,
-            //   memberExpressions: true,
-            //   mergeVars: true,
-            //   numericLiterals: true,
-            //   propertyLiterals: true,
-            //   regexpConstructors: true,
-            //   removeConsole: false,
-            //   removeDebugger: true,
-            //   removeUndefined: true,
-            //   replace: true,
-            //   simplify: true,
-            //   simplifyComparisons: true,
-            //   typeConstructors: true,
-            //   undefinedToVoid: true,
-            // }],
-          ],
+          presets: this.presets,
           comments: false,
           sourceMaps: this.options.sourceMap,
           filenameRelative: module.moduleId,

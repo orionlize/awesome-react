@@ -7,8 +7,6 @@ module.exports = {
   ],
   output: 'build',
   resolve: ['.js'],
-  esmodules: true,
-  sourceMap: true,
   format: 'iife',
   jsx: true,
   loaders: [
