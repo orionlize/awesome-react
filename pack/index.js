@@ -1,5 +1,7 @@
+const path = require('path');
+
 const configPath = process.argv[2];
-const options = require(configPath);
+const options = require(path.resolve(process.cwd(), configPath));
 
 if (!options) {
   console.error('pack options is null!');

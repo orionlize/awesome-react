@@ -5,6 +5,10 @@ const fs = require('fs');
 const path = require('path');
 const {SourceMapConsumer, SourceNode} = require('source-map');
 
+function getNodeModulesPath() {
+  return path.resolve(process.cwd(), 'node_modules');
+}
+
 /**
  * 返回入口文件路径
  * @param {String} input 入口路径
@@ -132,6 +136,7 @@ function fillInHtml(chunks, htmlSrc) {
 }
 
 module.exports = {
+  getNodeModulesPath,
   getEntry,
   getOutput,
   tryExpression,
