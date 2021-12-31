@@ -1,4 +1,5 @@
 const DefinePlugin = require('./plugin/define-plugin');
+const MeasureSpeedPlugin = require('./plugin/measure-speed-plugin');
 const TestPlugin = require('./plugin/pack-split-plugin');
 
 module.exports = {
@@ -25,5 +26,6 @@ module.exports = {
         '__REACT_DEVTOOLS_GLOBAL_HOOK__': 'undefined',
       },
     }),
+    new MeasureSpeedPlugin({}),
   ],
 };

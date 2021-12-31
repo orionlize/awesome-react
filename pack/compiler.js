@@ -46,12 +46,33 @@ class Compiler {
     this.externals = new Map();
     this.emitIndex = 0;
     this.observer = observer;
+    options.loaders.forEach((loader) => {
+      const func = loader.loader;
+      // eslint-disable-next-line prefer-const
+      let observeFunc = null;
+      eval(`observeFunc = function ${func.name}(code, path, cb) {
+        cb(func(code, path));
+      }`);
+      loader.loader = observer.observe(observeFunc);
+    });
     options.plugins.forEach((plugin) => {
       plugin.apply(this);
     });
-    options.loaders.forEach((loader) => {
-      observer.observe(loader.loader);
-    });
+    for (const name in this.hooks) {
+      if (Reflect.has(this.hooks, name)) {
+        const {taps} = this.hooks[name];
+        taps.forEach((tap) => {
+          // eslint-disable-next-line no-unused-vars
+          const func = tap.fn;
+          // eslint-disable-next-line prefer-const
+          let observeFunc = null;
+          eval(`observeFunc = function ${tap.name}(...args) {
+            func(...args);
+      }`);
+          tap.fn = this.observer.observe(observeFunc);
+        });
+      }
+    }
   }
 
   _buildModule(modulePath, originModulePath = '', moduleContext = '', isExternal = false) {
@@ -82,7 +103,9 @@ class Compiler {
     };
     this.options.loaders.reverse().forEach((item) => {
       if (item.test.test(_modulePath)) {
-        content = item.loader(content, _modulePath);
+        item.loader(content, _modulePath, (code) => {
+          content = code;
+        });
       }
     });
     const ast = parseSync(content, {
@@ -233,7 +256,6 @@ class Compiler {
     }
     return module;
   }
-
 
   /**
    * @typedef Specifier
@@ -625,28 +647,19 @@ class Compiler {
       map.file = `./${filename}.js`;
     }
 
-    fs.writeFile(path.resolve(
+    fs.writeFileSync(path.resolve(
         absoluteOutput, `${filename}.js`),
-    code,
-    (err) => {
-      if (err) {
-        console.log(err);
-      }
-    });
+    code);
     if (sourceMap) {
-      fs.writeFile(
+      fs.writeFileSync(
           path.resolve(absoluteOutput, `${filename}.js.map`),
-          JSON.stringify(map),
-          (err) => {
-            if (err) {
-              console.log(err);
-            }
-          });
+          JSON.stringify(map));
     }
     chunks.push(`./${filename}.js`);
   }
 
   run(callback) {
+    observer.mark('start');
     this.hooks.run.call(this);
     for (const entry of this.options.input) {
       const entryModule = this._buildModule(getEntry(entry), entry.split('/').slice(-1)[0]);
@@ -703,12 +716,8 @@ class Compiler {
         this.write(entry, absoluteOutput, chunks, this.options.sourceMap);
       });
 
-      fs.writeFile(path.resolve(
-          absoluteOutput, `index.html`), fillInHtml(chunks, './index.html'), (err) => {
-        if (err) {
-          console.log(err);
-        }
-      });
+      fs.writeFileSync(path.resolve(
+          absoluteOutput, `index.html`), fillInHtml(chunks, './index.html'));
     } else {
       // this.modules.forEach((module) => {
       //   const presets = [['minify']];
@@ -754,6 +763,7 @@ class Compiler {
     }
     this.hooks.done.call(this);
     callback && callback();
+    observer.mark('end');
   }
 }
 

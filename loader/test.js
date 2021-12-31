@@ -1,5 +1,5 @@
 function test(code, path) {
-  console.log('\x1B[33m', path);
+  console.log(path);
   return code;
 }
 

@@ -16,7 +16,7 @@ class TestPlugin {
   }
 
   apply(pack) {
-    pack.hooks.emit.tap('emit', (target) => {
+    pack.hooks.emit.tap('PackSplitPlugin', (target) => {
       target.merge(this.options.split(target.modules));
     });
   }
