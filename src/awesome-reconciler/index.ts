@@ -378,7 +378,7 @@ function diff(
       unmount(old);
       build(element, node, visitor);
       const doc = document.createDocumentFragment();
-      sateRenderElement((node.children as AwesomeTypes.VDom[])[visitor], doc, 0);
+      safeRenderElement((node.children as AwesomeTypes.VDom[])[visitor], doc, 0);
 
       appendNextNode(doc, node, visitor + 1);
     } else if ('type' in element && typeof element.type === 'function') {
@@ -416,7 +416,7 @@ function diff(
       (node.children[visitor] as AwesomeTypes.VDom).props = null;
     } else if (!old) {
       build(element, node, visitor);
-      sateRenderElement((node.children as AwesomeTypes.VDom[])[visitor], node.dom!, visitor);
+      safeRenderElement((node.children as AwesomeTypes.VDom[])[visitor], node.dom!, visitor);
 
       appendNextNode(node.dom!, node.parent!, node.visitor + 1);
     }
@@ -585,7 +585,7 @@ function renderElement(
 
       for (let i = 0; i < node.children.length; ++ i) {
         const child = node.children[i];
-        sateRenderElement(child as AwesomeTypes.VDom, node.dom, i);
+        safeRenderElement(child as AwesomeTypes.VDom, node.dom, i);
       }
 
       if ('ref' in node.props) {
@@ -597,14 +597,14 @@ function renderElement(
       node.dom = el as unknown as HTMLElement;
       for (let i = 0; i < node.children.length; ++ i) {
         const child = node.children[i];
-        sateRenderElement(child as AwesomeTypes.VDom, node.dom, i);
+        safeRenderElement(child as AwesomeTypes.VDom, node.dom, i);
       }
       parent.append(el);
     }
   } else {
     for (let i = 0; i < node.children.length; ++ i) {
       const child = node.children[i];
-      sateRenderElement(child as AwesomeTypes.VDom, parent, visitor);
+      safeRenderElement(child as AwesomeTypes.VDom, parent, visitor);
       if (!node.dom && (node.children as AwesomeTypes.VDom[])[i].dom) {
         node.dom = (node.children as AwesomeTypes.VDom[])[i].dom;
       }
@@ -629,7 +629,7 @@ function renderElement(
   }
 }
 
-function sateRenderElement(
+function safeRenderElement(
     node: AwesomeTypes.VDom,
     parent: AwesomeTypes.Container,
     visitor: number = 0,
